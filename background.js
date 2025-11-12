@@ -282,42 +282,86 @@ browser.runtime.onMessage.addListener(async (message) => {
       scanProgress = { current: 0, total: 0, detail: "" }; // Reset progress
       broadcastScanState();
 
+      // --- REFACTORED SCAN LOGIC ---
       const tree = await browser.bookmarks.getTree();
       const allBookmarks = await getAllBookmarks(tree[0]);
-      const seenUrls = new Set();
-      
-      scanProgress.total = allBookmarks.length;
-      console.log(`Found ${scanProgress.total} total bookmarks to process.`);
-      broadcastScanProgress(); // Send initial total
+
+      // --- Pass 1: Identify unique and duplicate bookmarks ---
+      console.log("Pass 1: Identifying duplicates...");
+      scanProgress.detail = "Identifying duplicates...";
+      broadcastScanProgress();
+
+      const seenUrls = new Map();
+      const duplicatesToRemove = [];
+      const uniqueBookmarks = [];
 
       for (const bookmark of allBookmarks) {
-        scanProgress.current++;
-        scanProgress.detail = bookmark.title || bookmark.url; // Fallback to URL if no title
-
-        // --- NEW: Duplicate detection during scan ---
-        if (bookmark.url && seenUrls.has(bookmark.url)) {
-          console.log(`Duplicate found, removing: ${bookmark.title}`);
-          try {
-            await browser.bookmarks.remove(bookmark.id);
-          } catch (e) {
-            console.warn(`Could not remove duplicate bookmark ${bookmark.id}:`, e.message);
-          }
-          continue; // Skip categorization for this one
-        }
+        // Only process actual bookmarks with URLs
         if (bookmark.url) {
-          seenUrls.add(bookmark.url);
+          if (seenUrls.has(bookmark.url)) {
+            duplicatesToRemove.push(bookmark.id);
+          } else {
+            seenUrls.set(bookmark.url, true); // Keep track of seen URLs
+            uniqueBookmarks.push(bookmark);
+          }
         }
+      }
+      console.log(`Found ${duplicatesToRemove.length} duplicates and ${uniqueBookmarks.length} unique bookmarks to process.`);
 
-        // --- CHANGE: Send first, last, and throttled updates ---
-        if (
-          scanProgress.current === 1 ||
-          scanProgress.current % 10 === 0 ||
-          scanProgress.current === scanProgress.total
-        ) {
-          broadcastScanProgress();
+      // The total for the progress bar is all the work we have to do:
+      // removing duplicates + categorizing unique bookmarks.
+      scanProgress.total = duplicatesToRemove.length + uniqueBookmarks.length;
+      scanProgress.current = 0;
+      broadcastScanProgress(); // Send initial total
+
+      // --- Pass 2: Remove duplicates in parallel ---
+      if (duplicatesToRemove.length > 0) {
+        console.log(`Pass 2: Removing ${duplicatesToRemove.length} duplicates in parallel...`);
+        scanProgress.detail = `Removing duplicates...`;
+        broadcastScanProgress();
+
+        // Create an array of promises for removing bookmarks
+        const removePromises = duplicatesToRemove.map(id =>
+          browser.bookmarks.remove(id).then(() => {
+            scanProgress.current++;
+            // Throttled progress updates
+            if (scanProgress.current % 10 === 0 || scanProgress.current === duplicatesToRemove.length) {
+              broadcastScanProgress();
+            }
+          }).catch(e => {
+            // Don't let a single failure stop the whole batch
+            console.warn(`Could not remove duplicate bookmark ${id}:`, e.message);
+          })
+        );
+        await Promise.all(removePromises);
+        console.log("Duplicate removal complete.");
+      }
+
+      // --- Pass 3: Process unique bookmarks in concurrent chunks ---
+      if (uniqueBookmarks.length > 0) {
+        console.log(`Pass 3: Categorizing ${uniqueBookmarks.length} unique bookmarks in chunks...`);
+        scanProgress.detail = `Categorizing bookmarks...`;
+        broadcastScanProgress();
+
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < uniqueBookmarks.length; i += CHUNK_SIZE) {
+          const chunk = uniqueBookmarks.slice(i, i + CHUNK_SIZE);
+          console.log(`Processing chunk starting at index ${i}, size ${chunk.length}`);
+
+          const categorizePromises = chunk.map(bookmark =>
+            categorizeBookmark(bookmark).then(() => {
+              scanProgress.current++;
+              scanProgress.detail = bookmark.title || bookmark.url; // Update detail
+              // Throttled progress updates
+              if (scanProgress.current % 10 === 0 || scanProgress.current === scanProgress.total) {
+                broadcastScanProgress();
+              }
+            }).catch(e => {
+              console.error(`Error categorizing bookmark '${bookmark.title}':`, e.message);
+            })
+          );
+          await Promise.all(categorizePromises);
         }
-
-        await categorizeBookmark(bookmark);
       }
       
       console.log("Scan finished.");
