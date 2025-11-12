@@ -5,30 +5,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const progressContainer = document.getElementById('progress-container');
   const progressBar = document.getElementById('progress-bar');
   const progressText = document.getElementById('progress-text');
+  const progressDetail = document.getElementById('progress-detail');
 
   // --- NEW: Function to update the progress bar UI ---
-  function updateProgress(current, total) {
+  function updateProgress(current, total, detail = "") {
     if (total > 0) {
       const percentage = Math.round((current / total) * 100);
       progressBar.style.width = `${percentage}%`;
       progressBar.textContent = `${percentage}%`;
       progressText.textContent = `${current} / ${total} bookmarks processed`;
+      progressDetail.textContent = detail ? `Scanning: ${detail}` : "";
       progressContainer.style.display = 'block';
     } else {
       progressContainer.style.display = 'none';
+      progressDetail.textContent = "";
     }
   }
 
-  function updateUI(isScanning, progress = { current: 0, total: 0 }) {
+  function updateUI(isScanning, progress = { current: 0, total: 0, detail: "" }) {
     if (isScanning) {
       scanButton.disabled = true;
       scanButton.textContent = "Scanning...";
       statusEl.textContent = "Scan is running in the background.";
-      updateProgress(progress.current, progress.total);
+      updateProgress(progress.current, progress.total, progress.detail);
     } else {
       scanButton.disabled = false;
       scanButton.textContent = "Organize Existing Bookmarks";
       progressContainer.style.display = 'none'; // Hide progress when not scanning
+      progressDetail.textContent = ""; // Clear detail when not scanning
     }
   }
 
