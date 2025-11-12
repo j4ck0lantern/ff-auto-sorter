@@ -3,9 +3,17 @@
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: sans-serif; width: 250px; padding: 10px; }
-    h2 { text-align: center; margin-top: 0; }
-    p { font-size: 14px; color: #333; }
+    body { font-family: sans-serif; width: 250px; padding: 10px; text-align: center; } /* Centered all content */
+    
+    /* --- NEW: Style for the icon --- */
+    #icon {
+      width: 48px; /* Using the 128px file but scaling it down */
+      height: 48px;
+      margin-bottom: 5px;
+    }
+
+    h2 { text-align: center; margin-top: 0; margin-bottom: 10px; }
+    p { font-size: 14px; color: #333; text-align: left; } /* Reset p to text-align left */
     button {
       width: 100%;
       padding: 10px;
@@ -23,7 +31,10 @@
   </style>
 </head>
 <body>
-  <h2>Hobby Sorter</h2>
+  <!-- --- NEW: Added the icon image --- -->
+  <img id="icon" src="icons/icon-128.png" alt="Auto Sorter Icon">
+
+  <h2>Auto Sorter</h2>
   <p>Click the button to scan and organize all your existing bookmarks based on your options.</p>
   <button id="scanButton">Organize Existing Bookmarks</button>
   <div id="status"></div>
