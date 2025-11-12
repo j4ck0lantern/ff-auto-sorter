@@ -234,7 +234,7 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
 
 /* --- State Management --- */
 let isScanning = false;
-let scanProgress = { current: 0, total: 0 }; // NEW: track progress
+let scanProgress = { current: 0, total: 0, detail: "" }; // NEW: track progress & detail
 
 function broadcastScanState() {
   browser.runtime.sendMessage({
@@ -267,23 +267,45 @@ browser.runtime.onMessage.addListener(async (message) => {
     console.log("Scan requested. Starting...");
     try {
       isScanning = true;
-      scanProgress = { current: 0, total: 0 }; // Reset progress
+      scanProgress = { current: 0, total: 0, detail: "" }; // Reset progress
       broadcastScanState();
 
       const tree = await browser.bookmarks.getTree();
       const allBookmarks = await getAllBookmarks(tree[0]);
+      const seenUrls = new Set();
       
       scanProgress.total = allBookmarks.length;
       console.log(`Found ${scanProgress.total} total bookmarks to process.`);
       broadcastScanProgress(); // Send initial total
 
       for (const bookmark of allBookmarks) {
-        await categorizeBookmark(bookmark);
         scanProgress.current++;
-        // NEW: Throttle progress updates to avoid overwhelming the popup
-        if (scanProgress.current % 10 === 0 || scanProgress.current === scanProgress.total) {
+        scanProgress.detail = bookmark.title || bookmark.url; // Fallback to URL if no title
+
+        // --- NEW: Duplicate detection during scan ---
+        if (bookmark.url && seenUrls.has(bookmark.url)) {
+          console.log(`Duplicate found, removing: ${bookmark.title}`);
+          try {
+            await browser.bookmarks.remove(bookmark.id);
+          } catch (e) {
+            console.warn(`Could not remove duplicate bookmark ${bookmark.id}:`, e.message);
+          }
+          continue; // Skip categorization for this one
+        }
+        if (bookmark.url) {
+          seenUrls.add(bookmark.url);
+        }
+
+        // --- CHANGE: Send first, last, and throttled updates ---
+        if (
+          scanProgress.current === 1 ||
+          scanProgress.current % 10 === 0 ||
+          scanProgress.current === scanProgress.total
+        ) {
           broadcastScanProgress();
         }
+
+        await categorizeBookmark(bookmark);
       }
       
       console.log("Scan finished.");
