@@ -305,6 +305,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       scanProgress = { current: 0, total: 0, detail: "" }; // Reset progress
       broadcastScanState();
 
+      // --- NEW: Re-sort top-level folders based on config order ---
+      await resortTopLevelFolders();
+
       // --- REFACTORED SCAN LOGIC ---
       const tree = await browser.bookmarks.getTree();
       const allBookmarks = await getAllBookmarks(tree[0]);
@@ -422,3 +425,52 @@ async function getAllBookmarks(node) {
 }
 
 // --- The old 'scanNode' function is no longer needed and has been removed ---
+
+/* --- NEW: Re-sorts Top-Level Folders on Toolbar (REFACTORED) --- */
+async function resortTopLevelFolders() {
+  console.log("Re-sorting top-level folders...");
+  try {
+    const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+    if (!sorterConfig || !Array.isArray(sorterConfig)) {
+      console.warn("Cannot re-sort folders: sorterConfig is missing or not an array.");
+      return;
+    }
+
+    const toolbarChildren = await browser.bookmarks.getChildren("toolbar_____");
+    const toolbarFoldersMap = new Map();
+    toolbarChildren.forEach(child => {
+      if (!child.url) {
+        toolbarFoldersMap.set(child.title, child);
+      }
+    });
+
+    // --- FIX: Create a unique, ordered list of top-level folders ---
+    const uniqueTopLevelFolders = [];
+    const seenFolders = new Set();
+    sorterConfig.forEach(rule => {
+      const topLevelName = rule.folder.split('/')[0];
+      if (!seenFolders.has(topLevelName)) {
+        seenFolders.add(topLevelName);
+        uniqueTopLevelFolders.push(topLevelName);
+      }
+    });
+
+    // Now iterate through the *unique* list to move folders
+    for (let i = 0; i < uniqueTopLevelFolders.length; i++) {
+      const folderName = uniqueTopLevelFolders[i];
+      const folderToMove = toolbarFoldersMap.get(folderName);
+
+      if (folderToMove && folderToMove.index !== i) {
+        try {
+          await browser.bookmarks.move(folderToMove.id, { index: i });
+          console.log(`Moved '${folderName}' to position ${i}.`);
+        } catch (e) {
+          // Log error but continue trying to sort other folders
+          console.error(`Failed to move folder '${folderName}':`, e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error during folder re-sorting:", e);
+  }
+}
