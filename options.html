@@ -34,45 +34,49 @@
   <p>
     The array contains objects, and <strong>bookmarks are checked in the order you define them</strong>. This gives you full control over priority.
   </p>
-  
-  <p>Each object in the array must have two keys:</p>
+
+  <p>Each object in the array can have three keys:</p>
   <ul>
-    <li><code>"folder"</code>: A string defining the folder path. Use <code>/</code> to create subfolders (e.g., <code>"Programming/Web"</code>).</li>
-    <li><code>"config"</code>: An object containing your matching rules:
-      <ul>
-        <li><code>"keywords"</code>: (Optional) A list of simple string keywords.</li>
-        <li><code>"comment"</code>: (Optional) A string to add notes for yourself.</li>
-        <li><code>"regex"</code>: (Optional) A list of <strong>objects</strong>, where each object has:
+      <li><code>"folder"</code>: (Required) A string for the folder path. Use <code>/</code> to create subfolders (e.g., <code>"Programming/Web"</code>).</li>
+      <li><code>"config"</code>: (Required) An object containing your matching rules (see below).</li>
+      <li><code>"static"</code>: (Optional) A boolean (<code>true</code> or <code>false</code>). If <code>true</code>, the top-level folder will be locked to the position it has in this config file. If <code>false</code> or omitted, the folder will be moved to the top of the bookmarks bar for easy access when a new bookmark is added to it. <strong>Note:</strong> This only applies to the top-level folder in a path.</li>
+  </ul>
+
+  <p>The <code>"config"</code> object contains your matching rules:</p>
+  <ul>
+      <li><code>"keywords"</code>: (Optional) A list of simple string keywords.</li>
+      <li><code>"comment"</code>: (Optional) A string to add notes for yourself.</li>
+      <li><code>"regex"</code>: (Optional) A list of <strong>objects</strong>, where each object has:
           <ul>
-            <li><code>"pattern"</code>: The regex string. (Remember to escape backslashes: <code>"\\.pdf$"</code>).</li>
-            <li><code>"comment"</code>: A string to explain what this regex does.</li>
+              <li><code>"pattern"</code>: The regex string. (Remember to escape backslashes: <code>"\\.pdf$"</code>).</li>
+              <li><code>"comment"</code>: A string to explain what this regex does.</li>
           </ul>
-        </li>
-      </ul>
-    </li>
+      </li>
   </ul>
 
   <p><strong>Example of one item in the array:</strong></p>
   <code class="block">
 [
   {
+    "folder": "Important Documents",
+    "static": true,
+    "config": {
+      "keywords": ["receipt", "invoice", "tax"],
+      "comment": "This folder will stay at the top."
+    }
+  },
+  {
     "folder": "Programming/Web",
     "config": {
       "keywords": ["react", "css", "node"],
-      "regex": [
-        {
-          "pattern": "github\\.com\\/[^\\/]+\\/(js|react)-",
-          "comment": "Matches GitHub repos with 'js-' or 'react-' in the name"
-        }
-      ],
-      "comment": "Web dev links. This will be checked first."
+      "comment": "This folder will move to the top when a bookmark is added."
     }
   },
   {
     "folder": "Programming",
     "config": {
       "keywords": ["github", "stackoverflow"],
-      "comment": "Catch-all for other programming links. Checked second."
+      "comment": "This is a catch-all that will also move."
     }
   }
 ]
