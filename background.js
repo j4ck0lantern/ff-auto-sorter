@@ -1,5 +1,5 @@
 /* --- Default Configuration (NEW ARRAY-BASED STRUCTURE) --- */
-const DEFAULT_HOBBIES = [
+const DEFAULT_CONFIG = [
   {
     "folder": "Programming/Web",
     "config": {
@@ -61,8 +61,8 @@ const DEFAULT_HOBBIES = [
 /* --- On Install: Set Up Default Config --- */
 browser.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === "install") {
-    await browser.storage.local.set({ hobbyConfig: DEFAULT_HOBBIES });
-    console.log("Default hobby configuration set.");
+    await browser.storage.local.set({ sorterConfig: DEFAULT_CONFIG });
+    console.log("Default sorter configuration set.");
   }
 });
 
@@ -99,9 +99,9 @@ async function categorizeBookmark(bookmark) {
     return;
   }
 
-  const { hobbyConfig } = await browser.storage.local.get("hobbyConfig");
-  if (!hobbyConfig) {
-    console.warn("Hobby config not found. Skipping categorization.");
+  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  if (!sorterConfig) {
+    console.warn("Sorter config not found. Skipping categorization.");
     return;
   }
 
@@ -110,8 +110,8 @@ async function categorizeBookmark(bookmark) {
   let matchedFolder = null;
 
   // --- CHANGE: Iterate over the array to respect priority order ---
-  hobbyLoop:
-  for (const item of hobbyConfig) {
+  sorterLoop:
+  for (const item of sorterConfig) {
     const config = item.config; // Get the config object
     const folderPath = item.folder; // Get the folder path (e.g., "Programming/Web")
 
@@ -121,10 +121,10 @@ async function categorizeBookmark(bookmark) {
     if (config.keywords && config.keywords.length > 0) {
       if (config.keywords.some(keyword => searchableText.includes(keyword.toLowerCase()))) {
         matchedFolder = folderPath;
-        break hobbyLoop; // Found a match, stop searching
+        break sorterLoop; // Found a match, stop searching
       }
     }
-
+    
     // 2. Check Regex
     if (config.regex && config.regex.length > 0) {
       // Loop through the new array of regex objects
@@ -134,10 +134,10 @@ async function categorizeBookmark(bookmark) {
           try {
             // Create RegExp object from the 'pattern' property
             // 'i' flag makes it case-insensitive
-            const re = new RegExp(regexObject.pattern, 'i');
+            const re = new RegExp(regexObject.pattern, 'i'); 
             if (re.test(searchableText)) {
               matchedFolder = folderPath;
-              break hobbyLoop; // Found a match, stop searching
+              break sorterLoop; // Found a match, stop searching
             }
           } catch (e) {
             // Log an error if the user provides an invalid regex, but don't crash
@@ -154,14 +154,14 @@ async function categorizeBookmark(bookmark) {
     try {
       // --- CHANGE: Use the Bookmark Toolbar as the base ---
       const baseFolderId = "toolbar_____";
-
+      
       // --- CHANGE: Find or create the *entire folder path* ---
-      const hobbyFolderId = await findOrCreateFolderPath(matchedFolder, baseFolderId);
-
+      const sorterFolderId = await findOrCreateFolderPath(matchedFolder, baseFolderId);
+      
       // Move the bookmark
       // --- CHANGE: Check if bookmark is already in the correct folder ---
-      if (bookmark.parentId !== hobbyFolderId) {
-        await browser.bookmarks.move(bookmark.id, { parentId: hobbyFolderId });
+      if (bookmark.parentId !== sorterFolderId) {
+        await browser.bookmarks.move(bookmark.id, { parentId: sorterFolderId });
         console.log(`Moved '${bookmark.title}' to '${matchedFolder}' folder.`);
       } else {
         console.log(`'${bookmark.title}' is already in the correct folder.`);
@@ -171,20 +171,24 @@ async function categorizeBookmark(bookmark) {
       console.error("Error moving bookmark:", e);
     }
   } else {
-    console.log(`No hobby match for: ${bookmark.title}`);
+    console.log(`No sorter match for: ${bookmark.title}`);
   }
 }
 
 /* --- NEW HELPER: Find or Create a Full Folder Path (e.g., "A/B/C") --- */
 async function findOrCreateFolderPath(path, baseParentId) {
-  const parts = path.split('/').filter(part => part.trim() !== '');
+  // --- FIX: Added .filter(p => p.length > 0) to remove empty parts ---
+  // This prevents errors if the path is "Programming/" (with a trailing slash)
+  const parts = path.split('/').filter(p => p.length > 0);
   let currentParentId = baseParentId;
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    // --- CHANGE: Only apply { index: 0 } to the *first* level folder on the toolbar ---
-    const isFirstLevel = (i === 0);
-    const createOptions = isFirstLevel ? { index: 0 } : {};
+    
+    // --- CHANGE: Always set index: 0. ---
+    // This ensures both top-level folders AND subfolders
+    // are created at the top of their parent.
+    const createOptions = { index: 0 };
 
     currentParentId = await findOrCreateSingleFolder(part, currentParentId, createOptions);
   }
@@ -196,13 +200,23 @@ async function findOrCreateFolderPath(path, baseParentId) {
 async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}) {
   // Get all children of the parent
   const children = await browser.bookmarks.getChildren(parentId);
-
+  
   // Check if folder already exists
-  const existingFolder = children.find(child =>
+  const existingFolder = children.find(child => 
     !child.url && child.title.toLowerCase() === folderName.toLowerCase()
   );
 
   if (existingFolder) {
+    // --- CHANGE: If folder exists, move it to the top (index: 0) ---
+    // This handles the "re-assessment" part of your request.
+    if (existingFolder.index !== 0) {
+      try {
+        await browser.bookmarks.move(existingFolder.id, { index: 0 });
+      } catch (e) {
+        // Log a warning but don't stop the whole process
+        console.warn(`Could not move folder '${folderName}' to top:`, e.message);
+      }
+    }
     return existingFolder.id;
   }
 
@@ -218,14 +232,22 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
 }
 
 
-/* --- Message Listener for Popup --- */
+/* --- Message Listener for Popup (REWRITTEN) --- */
 browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === "scan-existing") {
     console.log("Scan requested. Starting...");
     try {
       const tree = await browser.bookmarks.getTree();
-      // Start scanning from the root
-      await scanNode(tree[0]);
+      
+      // 1. Get a flat list of *all* bookmarks, regardless of folder
+      const allBookmarks = await getAllBookmarks(tree[0]);
+      console.log(`Found ${allBookmarks.length} total bookmarks to process.`);
+      
+      // 2. Iterate and categorize every single one
+      for (const bookmark of allBookmarks) {
+        await categorizeBookmark(bookmark);
+      }
+      
       console.log("Scan finished.");
       return { success: true };
     } catch (e) {
@@ -235,44 +257,25 @@ browser.runtime.onMessage.addListener(async (message) => {
   }
 });
 
-// Recursive function to scan all bookmark nodes (UPDATED)
-async function scanNode(node) {
-  // If it's a bookmark (has a URL), try to categorize it
+/* --- NEW HELPER: Recursively get all bookmarks in a flat list --- */
+async function getAllBookmarks(node) {
+  let bookmarks = [];
+
+  // If it's a bookmark (has a URL), add it to the list
   if (node.url) {
-    // --- CHANGE: Removed logic that skips pre-categorized bookmarks ---
-    // This now re-evaluates *every* bookmark when "Organize" is clicked,
-    // allowing bookmarks to be "shuffled" if the logic changes.
-    await categorizeBookmark(node);
+    bookmarks.push(node);
   }
 
-  // If it has children, scan them recursively
+  // If it has children, recurse into them
   if (node.children) {
-    // --- CHANGE: Update logic to find top-level hobby folders ---
-    const { hobbyConfig } = await browser.storage.local.get("hobbyConfig");
-    if (!hobbyConfig) {
-      // No config, just scan everything
-      for (const child of node.children) {
-        await scanNode(child);
-      }
-      return;
-    }
-
-    // Get all *top-level* folder names from the config
-    // e.g., "Programming/Web" -> "Programming"
-    // e.g., "Cooking" -> "Cooking"
-    const topLevelHobbyFolders = [
-      ...new Set(hobbyConfig.map(item => item.folder.split('/')[0].toLowerCase()))
-    ];
-
-    if (node.parentId === "toolbar_____" && topLevelHobbyFolders.includes(node.title.toLowerCase())) {
-      // This is a top-level hobby folder, don't scan its children
-      // We already process bookmarks and move them *into* here.
-      // Scanning inside would be redundant and could cause issues.
-    } else {
-      // Not a hobby folder, scan children
-      for (const child of node.children) {
-        await scanNode(child);
-      }
+    for (const child of node.children) {
+      // Await the results of the recursion and concatenate
+      const childBookmarks = await getAllBookmarks(child);
+      bookmarks = bookmarks.concat(childBookmarks);
     }
   }
+  
+  return bookmarks;
 }
+
+// --- The old 'scanNode' function is no longer needed and has been removed ---
