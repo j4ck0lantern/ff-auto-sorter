@@ -235,6 +235,13 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
 /* --- State Management --- */
 let isScanning = false;
 
+function broadcastScanState() {
+  browser.runtime.sendMessage({
+    action: "scan-status-update",
+    isScanning: isScanning
+  }).catch(e => console.log("Error broadcasting scan state:", e.message));
+}
+
 /* --- Message Listener for Popup (REWRITTEN) --- */
 browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === "get-scan-status") {
@@ -250,6 +257,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     console.log("Scan requested. Starting...");
     try {
       isScanning = true;
+      broadcastScanState();
       const tree = await browser.bookmarks.getTree();
       
       // 1. Get a flat list of *all* bookmarks, regardless of folder
@@ -268,6 +276,7 @@ browser.runtime.onMessage.addListener(async (message) => {
       return { success: false, error: e.message };
     } finally {
       isScanning = false;
+      broadcastScanState();
       console.log("Scan status reset.");
     }
   }

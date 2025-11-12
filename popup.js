@@ -2,17 +2,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanButton = document.getElementById('scanButton');
   const statusEl = document.getElementById('status');
 
+  function updateUI(isScanning) {
+    if (isScanning) {
+      scanButton.disabled = true;
+      scanButton.textContent = "Scanning...";
+      statusEl.textContent = "Scan is running in the background.";
+    } else {
+      scanButton.disabled = false;
+      scanButton.textContent = "Organize Existing Bookmarks";
+    }
+  }
+
   async function checkScanStatus() {
     try {
       const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
-      if (response && response.isScanning) {
-        scanButton.disabled = true;
-        scanButton.textContent = "Scanning...";
-        statusEl.textContent = "Scan is running in the background.";
-      } else {
-        scanButton.disabled = false;
-        scanButton.textContent = "Organize Existing Bookmarks";
-      }
+      updateUI(response && response.isScanning);
     } catch (e) {
       console.error("Error checking scan status:", e);
       statusEl.textContent = "Error updating status.";
@@ -47,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
         statusEl.textContent = "";
         checkScanStatus();
       }, 3000);
+    }
+  });
+
+  browser.runtime.onMessage.addListener((message) => {
+    if (message.action === "scan-status-update") {
+      updateUI(message.isScanning);
     }
   });
 
