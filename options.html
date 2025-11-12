@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hobby Sorter Options</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background-color: #f9f9f9; }
+    h1 { color: #333; }
+    p, li { color: #555; max-width: 700px; line-height: 1.6; }
+    ul { background-color: #eee; border: 1px solid #ddd; border-radius: 5px; padding: 20px 20px 20px 40px; }
+    code { background-color: #e0e0e0; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
+    code.block { display: block; padding: 10px; margin-top: 5px; white-space: pre-wrap; background-color: #e8e8e8; border-radius: 5px; }
+    #config { width: 100%; min-height: 400px; font-family: monospace; font-size: 14px; border: 1px solid #ccc; border-radius: 8px; padding: 10px; box-sizing: border-box; }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: background-color 0.2s;
+    }
+    button:hover { background-color: #0056b3; }
+    #status { margin-top: 15px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Hobby Sorter Options</h1>
+  <p>
+    Configure your hobbies below. The configuration must be a JSON <strong>Array</strong> (starts with <code>[</code> ... <code>]</code>).
+  </p>
+  <p>
+    The array contains objects, and <strong>bookmarks are checked in the order you define them</strong>. This gives you full control over priority.
+  </p>
+  
+  <p>Each object in the array must have two keys:</p>
+  <ul>
+    <li><code>"folder"</code>: A string defining the folder path. Use <code>/</code> to create subfolders (e.g., <code>"Programming/Web"</code>).</li>
+    <li><code>"config"</code>: An object containing your matching rules:
+      <ul>
+        <li><code>"keywords"</code>: (Optional) A list of simple string keywords.</li>
+        <li><code>"comment"</code>: (Optional) A string to add notes for yourself.</li>
+        <li><code>"regex"</code>: (Optional) A list of <strong>objects</strong>, where each object has:
+          <ul>
+            <li><code>"pattern"</code>: The regex string. (Remember to escape backslashes: <code>"\\.pdf$"</code>).</li>
+            <li><code>"comment"</code>: A string to explain what this regex does.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ul>
+
+  <p><strong>Example of one item in the array:</strong></p>
+  <code class="block">
+[
+  {
+    "folder": "Programming/Web",
+    "config": {
+      "keywords": ["react", "css", "node"],
+      "regex": [
+        {
+          "pattern": "github\\.com\\/[^\\/]+\\/(js|react)-",
+          "comment": "Matches GitHub repos with 'js-' or 'react-' in the name"
+        }
+      ],
+      "comment": "Web dev links. This will be checked first."
+    }
+  },
+  {
+    "folder": "Programming",
+    "config": {
+      "keywords": ["github", "stackoverflow"],
+      "comment": "Catch-all for other programming links. Checked second."
+    }
+  }
+]
+  </code>
+  <p>A bookmark will be filed under the <strong>first</strong> rule that matches.</p>
+
+  <textarea id="config"></textarea>
+  <br>
+  <button id="saveButton">Save Configuration</button>
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>
