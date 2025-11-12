@@ -1,6 +1,6 @@
-# Hobby Bookmark Sorter
+# Auto Sorter
 
-Hobby Bookmark Sorter is a browser extension designed to automatically organize your new and existing bookmarks into designated hobby folders. It uses a flexible system of keywords and regular expressions to categorize bookmarks based on their title and URL, helping you maintain a clean and structured bookmark collection.
+Auto Sorter is a browser extension designed to automatically organize your new and existing bookmarks into designated hobby folders. It uses a flexible system of keywords and regular expressions to categorize bookmarks based on their title and URL, helping you maintain a clean and structured bookmark collection.
 
 ## Key Features
 
@@ -58,4 +58,4 @@ To install the extension, follow these steps:
 
 ## Privacy Policy
 
-Hobby Bookmark Sorter is designed with privacy in mind. All your data is stored and processed locally on your computer. The extension does not collect or transmit any personal information.
+Auto Sorter is designed with privacy in mind. All your data is stored and processed locally on your computer. The extension does not collect or transmit any personal information.
