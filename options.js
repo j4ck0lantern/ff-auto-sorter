@@ -6,9 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load the current config from storage
   async function loadConfig() {
     try {
-      const { hobbyConfig } = await browser.storage.local.get('hobbyConfig');
-      if (hobbyConfig) {
-        configText.value = JSON.stringify(hobbyConfig, null, 2); // Pretty-print
+      const { sorterConfig } = await browser.storage.local.get('sorterConfig');
+      if (sorterConfig) {
+        configText.value = JSON.stringify(sorterConfig, null, 2); // Pretty-print
       } else {
         statusEl.textContent = "No config found. Using defaults.";
       }
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      await browser.storage.local.set({ hobbyConfig: config });
+      await browser.storage.local.set({ sorterConfig: config });
       statusEl.textContent = "Configuration saved!";
       statusEl.style.color = 'green';
       setTimeout(() => statusEl.textContent = "", 3000);

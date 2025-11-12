@@ -117,7 +117,19 @@ async function categorizeBookmark(bookmark) {
 
     if (!config || !folderPath) continue; // Skip malformed entries
 
-    // 1. Check Keywords
+    // 1. Check Exact URLs
+    if (config.exactUrls && config.exactUrls.includes(bookmark.url)) {
+      matchedFolder = folderPath;
+      break sorterLoop;
+    }
+
+    // 2. Check Exact Titles
+    if (config.exactTitles && config.exactTitles.includes(bookmark.title)) {
+      matchedFolder = folderPath;
+      break sorterLoop;
+    }
+
+    // 3. Check Keywords
     if (config.keywords && config.keywords.length > 0) {
       if (config.keywords.some(keyword => searchableText.includes(keyword.toLowerCase()))) {
         matchedFolder = folderPath;
@@ -125,7 +137,7 @@ async function categorizeBookmark(bookmark) {
       }
     }
     
-    // 2. Check Regex
+    // 4. Check Regex
     if (config.regex && config.regex.length > 0) {
       // Loop through the new array of regex objects
       for (const regexObject of config.regex) {
