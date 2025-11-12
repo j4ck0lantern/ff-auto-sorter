@@ -232,11 +232,24 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
 }
 
 
+/* --- State Management --- */
+let isScanning = false;
+
 /* --- Message Listener for Popup (REWRITTEN) --- */
 browser.runtime.onMessage.addListener(async (message) => {
+  if (message.action === "get-scan-status") {
+    return { isScanning };
+  }
+
   if (message.action === "scan-existing") {
+    if (isScanning) {
+      console.warn("Scan request ignored: A scan is already in progress.");
+      return { success: false, error: "Scan already in progress" };
+    }
+
     console.log("Scan requested. Starting...");
     try {
+      isScanning = true;
       const tree = await browser.bookmarks.getTree();
       
       // 1. Get a flat list of *all* bookmarks, regardless of folder
@@ -253,6 +266,9 @@ browser.runtime.onMessage.addListener(async (message) => {
     } catch (e) {
       console.error("Error during scan:", e);
       return { success: false, error: e.message };
+    } finally {
+      isScanning = false;
+      console.log("Scan status reset.");
     }
   }
 });
