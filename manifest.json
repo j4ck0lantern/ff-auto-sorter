@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Hobby Bookmark Sorter",
+  "name": "Auto Sorter",
   "version": "1.0",
   "description": "Automatically organizes new and existing bookmarks into hobby folders based on keywords in the title and URL.",
   "permissions": [
