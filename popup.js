@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- NEW: Listen for progress-specific updates ---
     if (message.action === "scan-progress-update") {
-      updateProgress(message.progress.current, message.progress.total);
+      updateProgress(message.progress.current, message.progress.total, message.progress.detail);
     }
   });
 
