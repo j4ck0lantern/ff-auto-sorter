@@ -2,6 +2,7 @@
 const DEFAULT_CONFIG = [
   {
     "folder": "Programming/Web",
+    "static": true,
     "config": {
       "keywords": ["javascript", "react", "css", "html", "node"],
       "regex": [],
@@ -10,6 +11,7 @@ const DEFAULT_CONFIG = [
   },
   {
     "folder": "Programming",
+    "static": true,
     "config": {
       "keywords": ["python", "github", "stackoverflow", "dev"],
       "regex": [
@@ -107,32 +109,40 @@ async function categorizeBookmark(bookmark) {
 
   // Combine title and URL for a better keyword match
   const searchableText = `${bookmark.title.toLowerCase()} ${bookmark.url.toLowerCase()}`;
-  let matchedFolder = null;
+  let matchedRule = null;
 
   // --- CHANGE: Iterate over the array to respect priority order ---
   sorterLoop:
-  for (const item of sorterConfig) {
+  for (let i = 0; i < sorterConfig.length; i++) {
+    const item = sorterConfig[i];
     const config = item.config; // Get the config object
     const folderPath = item.folder; // Get the folder path (e.g., "Programming/Web")
 
     if (!config || !folderPath) continue; // Skip malformed entries
 
+    // Rule found, store the whole item
+    const rule = {
+      folderPath,
+      isStatic: item.static === true, // NEW: Check for the static flag
+      baseIndex: i // NEW: Store the original index for static positioning
+    };
+
     // 1. Check Exact URLs
     if (config.exactUrls && config.exactUrls.includes(bookmark.url)) {
-      matchedFolder = folderPath;
+      matchedRule = rule;
       break sorterLoop;
     }
 
     // 2. Check Exact Titles
     if (config.exactTitles && config.exactTitles.includes(bookmark.title)) {
-      matchedFolder = folderPath;
+      matchedRule = rule;
       break sorterLoop;
     }
 
     // 3. Check Keywords
     if (config.keywords && config.keywords.length > 0) {
       if (config.keywords.some(keyword => searchableText.includes(keyword.toLowerCase()))) {
-        matchedFolder = folderPath;
+        matchedRule = rule;
         break sorterLoop; // Found a match, stop searching
       }
     }
@@ -148,12 +158,11 @@ async function categorizeBookmark(bookmark) {
             // 'i' flag makes it case-insensitive
             const re = new RegExp(regexObject.pattern, 'i'); 
             if (re.test(searchableText)) {
-              matchedFolder = folderPath;
+              matchedRule = rule;
               break sorterLoop; // Found a match, stop searching
             }
           } catch (e) {
             // Log an error if the user provides an invalid regex, but don't crash
-            // --- FIX: Replaced undefined 'hobbyName' with 'folderPath' ---
             console.warn(`Invalid regex for folder '${folderPath}': ${regexObject.pattern}`, e.message);
           }
         }
@@ -161,14 +170,19 @@ async function categorizeBookmark(bookmark) {
     }
   }
 
-  if (matchedFolder) {
-    console.log(`Bookmark matches rule for folder: ${matchedFolder}`);
+  if (matchedRule) {
+    console.log(`Bookmark matches rule for folder: ${matchedRule.folderPath}`);
     try {
       // --- CHANGE: Use the Bookmark Toolbar as the base ---
       const baseFolderId = "toolbar_____";
       
       // --- CHANGE: Find or create the *entire folder path* ---
-      const sorterFolderId = await findOrCreateFolderPath(matchedFolder, baseFolderId);
+      const sorterFolderId = await findOrCreateFolderPath(
+        matchedRule.folderPath,
+        baseFolderId,
+        matchedRule.isStatic, // Pass isStatic flag
+        matchedRule.baseIndex   // Pass the base index
+      );
       
       // Move the bookmark
       // --- CHANGE: Check if bookmark is already in the correct folder ---
@@ -188,28 +202,37 @@ async function categorizeBookmark(bookmark) {
 }
 
 /* --- NEW HELPER: Find or Create a Full Folder Path (e.g., "A/B/C") --- */
-async function findOrCreateFolderPath(path, baseParentId) {
-  // --- FIX: Added .filter(p => p.length > 0) to remove empty parts ---
+async function findOrCreateFolderPath(path, baseParentId, isStatic, baseIndex) {
   // This prevents errors if the path is "Programming/" (with a trailing slash)
   const parts = path.split('/').filter(p => p.length > 0);
   let currentParentId = baseParentId;
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    
-    // --- CHANGE: Always set index: 0. ---
-    // This ensures both top-level folders AND subfolders
-    // are created at the top of their parent.
-    const createOptions = { index: 0 };
+    let desiredIndex;
 
-    currentParentId = await findOrCreateSingleFolder(part, currentParentId, createOptions);
+    // --- NEW: Static Logic ---
+    // Top-level folders (i=0) can be static.
+    // Sub-folders (i>0) are always placed at the top of their parent.
+    if (i === 0) { // Top-level folder
+      desiredIndex = isStatic ? baseIndex : 0;
+    } else { // Sub-folder
+      desiredIndex = 0;
+    }
+
+    const createOptions = { index: desiredIndex };
+    
+    // Pass the isStatic flag ONLY to the top-level folder
+    const passIsStatic = (i === 0) ? isStatic : false;
+
+    currentParentId = await findOrCreateSingleFolder(part, currentParentId, createOptions, passIsStatic);
   }
   return currentParentId; // Return the ID of the final folder in the path
 }
 
 
 /* --- Renamed Helper: Find or Create a Single Folder --- */
-async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}) {
+async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}, isStatic = false) {
   // Get all children of the parent
   const children = await browser.bookmarks.getChildren(parentId);
   
@@ -219,26 +242,26 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
   );
 
   if (existingFolder) {
-    // --- CHANGE: If folder exists, move it to the top (index: 0) ---
+    // --- NEW: If folder is NOT static, move it to the desired index ---
     // This handles the "re-assessment" part of your request.
-    if (existingFolder.index !== 0) {
+    if (!isStatic && existingFolder.index !== createOptions.index) {
       try {
+        // For non-static folders, always move to the top.
         await browser.bookmarks.move(existingFolder.id, { index: 0 });
       } catch (e) {
-        // Log a warning but don't stop the whole process
         console.warn(`Could not move folder '${folderName}' to top:`, e.message);
       }
     }
+    // If it's static, we DON'T move it. Its position is fixed.
     return existingFolder.id;
   }
 
   // If not, create it
   console.log(`Creating new folder: ${folderName}`);
-  // --- CHANGE: Spread createOptions to include { index: 0 } ---
   const newFolder = await browser.bookmarks.create({
     parentId: parentId,
     title: folderName,
-    ...createOptions
+    ...createOptions // This will set the index correctly on creation
   });
   return newFolder.id;
 }
