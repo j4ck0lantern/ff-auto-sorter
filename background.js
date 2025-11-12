@@ -124,7 +124,7 @@ async function categorizeBookmark(bookmark) {
         break hobbyLoop; // Found a match, stop searching
       }
     }
-    
+
     // 2. Check Regex
     if (config.regex && config.regex.length > 0) {
       // Loop through the new array of regex objects
@@ -134,7 +134,7 @@ async function categorizeBookmark(bookmark) {
           try {
             // Create RegExp object from the 'pattern' property
             // 'i' flag makes it case-insensitive
-            const re = new RegExp(regexObject.pattern, 'i'); 
+            const re = new RegExp(regexObject.pattern, 'i');
             if (re.test(searchableText)) {
               matchedFolder = folderPath;
               break hobbyLoop; // Found a match, stop searching
@@ -154,10 +154,10 @@ async function categorizeBookmark(bookmark) {
     try {
       // --- CHANGE: Use the Bookmark Toolbar as the base ---
       const baseFolderId = "toolbar_____";
-      
+
       // --- CHANGE: Find or create the *entire folder path* ---
       const hobbyFolderId = await findOrCreateFolderPath(matchedFolder, baseFolderId);
-      
+
       // Move the bookmark
       // --- CHANGE: Check if bookmark is already in the correct folder ---
       if (bookmark.parentId !== hobbyFolderId) {
@@ -177,7 +177,7 @@ async function categorizeBookmark(bookmark) {
 
 /* --- NEW HELPER: Find or Create a Full Folder Path (e.g., "A/B/C") --- */
 async function findOrCreateFolderPath(path, baseParentId) {
-  const parts = path.split('/');
+  const parts = path.split('/').filter(part => part.trim() !== '');
   let currentParentId = baseParentId;
 
   for (let i = 0; i < parts.length; i++) {
@@ -196,9 +196,9 @@ async function findOrCreateFolderPath(path, baseParentId) {
 async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}) {
   // Get all children of the parent
   const children = await browser.bookmarks.getChildren(parentId);
-  
+
   // Check if folder already exists
-  const existingFolder = children.find(child => 
+  const existingFolder = children.find(child =>
     !child.url && child.title.toLowerCase() === folderName.toLowerCase()
   );
 
@@ -263,7 +263,7 @@ async function scanNode(node) {
     const topLevelHobbyFolders = [
       ...new Set(hobbyConfig.map(item => item.folder.split('/')[0].toLowerCase()))
     ];
-    
+
     if (node.parentId === "toolbar_____" && topLevelHobbyFolders.includes(node.title.toLowerCase())) {
       // This is a top-level hobby folder, don't scan its children
       // We already process bookmarks and move them *into* here.

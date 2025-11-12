@@ -47,14 +47,15 @@ Here is an example of the default configuration:
 
 To add your own rules, simply modify the JSON in the options page and click "Save".
 
-## Installation
+## Installation (Firefox)
 
-To install the extension, follow these steps:
+To install the extension in Firefox, follow these steps:
 
 1.  Download the extension files from the [releases page](https://github.com/your-repo/releases).
-2.  Open your browser's extension management page (e.g., `chrome://extensions` or `about:debugging`).
-3.  Enable "Developer mode".
-4.  Click "Load unpacked" and select the folder containing the extension files.
+2.  Open Firefox and navigate to `about:debugging`.
+3.  Click on "This Firefox" in the sidebar.
+4.  Click on "Load Temporary Add-on...".
+5.  Select the `manifest.json` file from the extension's folder.
 
 ## Privacy Policy
 
