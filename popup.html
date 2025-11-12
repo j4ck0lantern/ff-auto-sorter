@@ -28,6 +28,33 @@
     button:hover { background-color: #218838; }
     button:disabled { background-color: #aaa; cursor: not-allowed; }
     #status { text-align: center; margin-top: 10px; font-weight: bold; }
+
+    /* --- NEW: Progress Bar Styles --- */
+    #progress-container {
+      width: 100%;
+      background-color: #f3f3f3;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-top: 10px;
+      display: none; /* Hidden by default */
+    }
+    #progress-bar {
+      width: 0%;
+      height: 20px;
+      background-color: #28a745;
+      border-radius: 4px;
+      text-align: center;
+      line-height: 20px;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    #progress-text {
+      text-align: center;
+      font-size: 12px;
+      margin-top: 2px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -38,6 +65,13 @@
   <p>Click the button to scan and organize all your existing bookmarks based on your options.</p>
   <button id="scanButton">Organize Existing Bookmarks</button>
   <div id="status"></div>
+
+  <!-- --- NEW: Progress Bar Elements --- -->
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+  <div id="progress-text"></div>
+
   <script src="popup.js"></script>
 </body>
 </html>

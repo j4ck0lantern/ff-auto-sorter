@@ -234,18 +234,28 @@ async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}
 
 /* --- State Management --- */
 let isScanning = false;
+let scanProgress = { current: 0, total: 0 }; // NEW: track progress
 
 function broadcastScanState() {
   browser.runtime.sendMessage({
     action: "scan-status-update",
-    isScanning: isScanning
+    isScanning: isScanning,
+    progress: scanProgress // Send progress along with state
   }).catch(e => console.log("Error broadcasting scan state:", e.message));
+}
+
+// NEW: Function to specifically broadcast progress updates
+function broadcastScanProgress() {
+  browser.runtime.sendMessage({
+    action: "scan-progress-update",
+    progress: scanProgress
+  }).catch(e => console.log("Error broadcasting progress:", e.message));
 }
 
 /* --- Message Listener for Popup (REWRITTEN) --- */
 browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === "get-scan-status") {
-    return { isScanning };
+    return { isScanning, progress: scanProgress }; // Return progress too
   }
 
   if (message.action === "scan-existing") {
@@ -257,16 +267,23 @@ browser.runtime.onMessage.addListener(async (message) => {
     console.log("Scan requested. Starting...");
     try {
       isScanning = true;
+      scanProgress = { current: 0, total: 0 }; // Reset progress
       broadcastScanState();
+
       const tree = await browser.bookmarks.getTree();
-      
-      // 1. Get a flat list of *all* bookmarks, regardless of folder
       const allBookmarks = await getAllBookmarks(tree[0]);
-      console.log(`Found ${allBookmarks.length} total bookmarks to process.`);
       
-      // 2. Iterate and categorize every single one
+      scanProgress.total = allBookmarks.length;
+      console.log(`Found ${scanProgress.total} total bookmarks to process.`);
+      broadcastScanProgress(); // Send initial total
+
       for (const bookmark of allBookmarks) {
         await categorizeBookmark(bookmark);
+        scanProgress.current++;
+        // NEW: Throttle progress updates to avoid overwhelming the popup
+        if (scanProgress.current % 10 === 0 || scanProgress.current === scanProgress.total) {
+          broadcastScanProgress();
+        }
       }
       
       console.log("Scan finished.");
