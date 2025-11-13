@@ -96,6 +96,17 @@ async function handleBookmarkCreated(id, bookmark) {
 
 /* --- NEW: Gemini API Integration --- */
 async function getGeminiSuggestion(bookmark, sorterConfig) {
+  // 1. --- Check Cache First ---
+  const { geminiCache = {} } = await browser.storage.local.get('geminiCache');
+  const cachedData = geminiCache[bookmark.url];
+  const oneYearAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
+
+  if (cachedData && cachedData.timestamp > oneYearAgo) {
+    console.log(`Using cached Gemini suggestion for: ${bookmark.url}`);
+    return cachedData;
+  }
+
+  // 2. --- Proceed with API Call if No Valid Cache ---
   const { geminiApiKey } = await browser.storage.local.get('geminiApiKey');
   if (!geminiApiKey) {
     console.log("Gemini API key not found. Skipping AI suggestion.");
@@ -110,15 +121,17 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
     Here is a list of available bookmark folders:
     ${folderList}
 
-    Based on the content of the page, please perform two tasks:
+    Based on the content of the page, please perform three tasks:
     1. Choose the single most relevant folder from the list provided.
     2. Write a concise, descriptive new name for the bookmark, exactly 8 words long.
+    3. Create a "word soup" of the top 15-20 most relevant keywords and topics from the article.
 
-    Return your answer as a single JSON object with two keys: "folder" and "description".
+    Return your answer as a single JSON object with three keys: "folder", "description", and "wordSoup".
     For example:
     {
       "folder": "Programming/Web",
-      "description": "A comprehensive guide to modern CSS techniques and layouts"
+      "description": "A comprehensive guide to modern CSS techniques and layouts",
+      "wordSoup": "css, flexbox, grid, layout, frontend, web development, responsive design"
     }
   `;
 
@@ -143,7 +156,18 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
     // Clean the response text to extract the JSON object
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const suggestion = JSON.parse(jsonMatch[0]);
+
+      // --- 3. Store in Cache ---
+      const newCacheEntry = {
+        ...suggestion,
+        timestamp: Date.now()
+      };
+      geminiCache[bookmark.url] = newCacheEntry;
+      await browser.storage.local.set({ geminiCache });
+      console.log(`Cached new Gemini suggestion for: ${bookmark.url}`);
+
+      return suggestion;
     } else {
       console.error("Could not parse JSON from Gemini response:", text);
       return null;
@@ -168,8 +192,11 @@ async function categorizeBookmark(bookmark) {
     return;
   }
 
-  // Combine title and URL for a better keyword match
-  const searchableText = `${bookmark.title.toLowerCase()} ${bookmark.url.toLowerCase()}`;
+  // --- NEW: Gemini API Integration ---
+  const geminiSuggestion = await getGeminiSuggestion(bookmark, sorterConfig);
+
+  // Combine title, URL, and Gemini's word soup for a better keyword match
+  const searchableText = `${bookmark.title.toLowerCase()} ${bookmark.url.toLowerCase()} ${geminiSuggestion ? geminiSuggestion.wordSoup : ''}`;
   let matchedRule = null;
 
   // --- CHANGE: Iterate over the array to respect priority order ---
@@ -230,9 +257,7 @@ async function categorizeBookmark(bookmark) {
     }
   }
 
-  // --- NEW: Gemini API Integration ---
-  const geminiSuggestion = await getGeminiSuggestion(bookmark, sorterConfig);
-
+  // --- Start Gemini Integration ---
   if (geminiSuggestion && geminiSuggestion.folder) {
     const matchedFolder = geminiSuggestion.folder;
     const newDescription = geminiSuggestion.description;

@@ -62,7 +62,7 @@ This extension now supports using the Gemini API to automatically generate a des
     *   Open the extension's options page.
     *   Paste your Gemini API key into the "Gemini API Key" field and click "Save API Key".
 
-Once configured, the extension will prioritize Gemini's suggestions for new bookmarks. If the API key is not provided or the API call fails, it will fall back to the keyword and regex-based sorting.
+Once configured, the extension will prioritize Gemini's suggestions for new bookmarks. If the API key is not provided or the API call fails, it will fall back to the keyword and regex-based sorting. To improve performance and reduce API usage, Gemini's suggestions are cached locally for one year.
 
 ## Installation (Firefox)
 
