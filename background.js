@@ -2,7 +2,7 @@
 const DEFAULT_CONFIG = [
   {
     "folder": "Programming/Web",
-    "static": true,
+    "index": [0, 0],
     "config": {
       "keywords": ["javascript", "react", "css", "html", "node"],
       "regex": [],
@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = [
   },
   {
     "folder": "Programming",
-    "static": true,
+    "index": 0,
     "config": {
       "keywords": ["python", "github", "stackoverflow", "dev"],
       "regex": [
@@ -123,8 +123,7 @@ async function categorizeBookmark(bookmark) {
     // Rule found, store the whole item
     const rule = {
       folderPath,
-      isStatic: item.static === true, // NEW: Check for the static flag
-      baseIndex: i // NEW: Store the original index for static positioning
+      index: item.index // Pass the index (could be number, array, or undefined)
     };
 
     // 1. Check Exact URLs
@@ -180,8 +179,7 @@ async function categorizeBookmark(bookmark) {
       const sorterFolderId = await findOrCreateFolderPath(
         matchedRule.folderPath,
         baseFolderId,
-        matchedRule.isStatic, // Pass isStatic flag
-        matchedRule.baseIndex   // Pass the base index
+        matchedRule.index
       );
       
       // Move the bookmark
@@ -202,8 +200,7 @@ async function categorizeBookmark(bookmark) {
 }
 
 /* --- NEW HELPER: Find or Create a Full Folder Path (e.g., "A/B/C") --- */
-async function findOrCreateFolderPath(path, baseParentId, isStatic, baseIndex) {
-  // This prevents errors if the path is "Programming/" (with a trailing slash)
+async function findOrCreateFolderPath(path, baseParentId, ruleIndex) {
   const parts = path.split('/').filter(p => p.length > 0);
   let currentParentId = baseParentId;
 
@@ -211,57 +208,48 @@ async function findOrCreateFolderPath(path, baseParentId, isStatic, baseIndex) {
     const part = parts[i];
     let desiredIndex;
 
-    // --- NEW: Static Logic ---
-    // Top-level folders (i=0) can be static.
-    // Sub-folders (i>0) are always placed at the top of their parent.
-    if (i === 0) { // Top-level folder
-      desiredIndex = isStatic ? baseIndex : 0;
-    } else { // Sub-folder
+    // --- NEW INDEXING LOGIC ---
+    const isIndexed = ruleIndex !== undefined;
+
+    if (isIndexed) {
+      // If index is an array, use the element corresponding to the folder depth.
+      // Otherwise, use the index for the top-level and 0 for subfolders.
+      desiredIndex = Array.isArray(ruleIndex) ? (ruleIndex[i] ?? 0) : (i === 0 ? ruleIndex : 0);
+    } else {
+      // Default for non-indexed folders is to be moved to the top.
       desiredIndex = 0;
     }
 
-    const createOptions = { index: desiredIndex };
-    
-    // Pass the isStatic flag ONLY to the top-level folder
-    const passIsStatic = (i === 0) ? isStatic : false;
-
-    currentParentId = await findOrCreateSingleFolder(part, currentParentId, createOptions, passIsStatic);
+    currentParentId = await findOrCreateSingleFolder(part, currentParentId, desiredIndex, isIndexed);
   }
-  return currentParentId; // Return the ID of the final folder in the path
+  return currentParentId;
 }
 
-
 /* --- Renamed Helper: Find or Create a Single Folder --- */
-async function findOrCreateSingleFolder(folderName, parentId, createOptions = {}, isStatic = false) {
-  // Get all children of the parent
+async function findOrCreateSingleFolder(folderName, parentId, desiredIndex, isIndexed) {
   const children = await browser.bookmarks.getChildren(parentId);
-  
-  // Check if folder already exists
-  const existingFolder = children.find(child => 
+  const existingFolder = children.find(child =>
     !child.url && child.title.toLowerCase() === folderName.toLowerCase()
   );
 
   if (existingFolder) {
-    // --- NEW: If folder is NOT static, move it to the desired index ---
-    // This handles the "re-assessment" part of your request.
-    if (!isStatic && existingFolder.index !== createOptions.index) {
-      try {
-        // For non-static folders, always move to the top.
-        await browser.bookmarks.move(existingFolder.id, { index: 0 });
+    // If the folder's position should be managed and it's not in the right place, move it.
+    if (existingFolder.index !== desiredIndex) {
+       try {
+        await browser.bookmarks.move(existingFolder.id, { index: desiredIndex });
       } catch (e) {
-        console.warn(`Could not move folder '${folderName}' to top:`, e.message);
+        console.warn(`Could not move folder '${folderName}' to index ${desiredIndex}:`, e.message);
       }
     }
-    // If it's static, we DON'T move it. Its position is fixed.
     return existingFolder.id;
   }
 
-  // If not, create it
-  console.log(`Creating new folder: ${folderName}`);
+  // If not, create it at the desired index.
+  console.log(`Creating new folder: ${folderName} at index ${desiredIndex}`);
   const newFolder = await browser.bookmarks.create({
     parentId: parentId,
     title: folderName,
-    ...createOptions // This will set the index correctly on creation
+    index: desiredIndex
   });
   return newFolder.id;
 }
@@ -428,7 +416,7 @@ async function getAllBookmarks(node) {
 
 /* --- NEW: Re-sorts Top-Level Folders on Toolbar (REFACTORED) --- */
 async function resortTopLevelFolders() {
-  console.log("Re-sorting top-level folders...");
+  console.log("Re-sorting top-level folders based on 'index' property...");
   try {
     const { sorterConfig } = await browser.storage.local.get("sorterConfig");
     if (!sorterConfig || !Array.isArray(sorterConfig)) {
@@ -439,34 +427,40 @@ async function resortTopLevelFolders() {
     const toolbarChildren = await browser.bookmarks.getChildren("toolbar_____");
     const toolbarFoldersMap = new Map();
     toolbarChildren.forEach(child => {
-      if (!child.url) {
+      if (!child.url) { // It's a folder
         toolbarFoldersMap.set(child.title, child);
       }
     });
 
-    // --- FIX: Create a unique, ordered list of top-level folders ---
-    const uniqueTopLevelFolders = [];
-    const seenFolders = new Set();
+    // Create a unique set of folder rules to process.
+    const folderRules = new Map();
     sorterConfig.forEach(rule => {
       const topLevelName = rule.folder.split('/')[0];
-      if (!seenFolders.has(topLevelName)) {
-        seenFolders.add(topLevelName);
-        uniqueTopLevelFolders.push(topLevelName);
+      // Only process rules that have a defined index for the top-level folder.
+      if (rule.index !== undefined && !folderRules.has(topLevelName)) {
+        const topLevelIndex = Array.isArray(rule.index) ? rule.index[0] : rule.index;
+        if (typeof topLevelIndex === 'number') {
+          folderRules.set(topLevelName, {
+            name: topLevelName,
+            desiredIndex: topLevelIndex
+          });
+        }
       }
     });
 
-    // Now iterate through the *unique* list to move folders
-    for (let i = 0; i < uniqueTopLevelFolders.length; i++) {
-      const folderName = uniqueTopLevelFolders[i];
-      const folderToMove = toolbarFoldersMap.get(folderName);
-
-      if (folderToMove && folderToMove.index !== i) {
+    // Move each folder to its desired index.
+    for (const [name, rule] of folderRules) {
+      const folderToMove = toolbarFoldersMap.get(name);
+      if (folderToMove && folderToMove.index !== rule.desiredIndex) {
         try {
-          await browser.bookmarks.move(folderToMove.id, { index: i });
-          console.log(`Moved '${folderName}' to position ${i}.`);
+          // Ensure we don't try to move to an out-of-bounds index
+          const maxIndex = toolbarChildren.length - 1;
+          const targetIndex = Math.min(rule.desiredIndex, maxIndex);
+
+          await browser.bookmarks.move(folderToMove.id, { index: targetIndex });
+          console.log(`Moved '${name}' to position ${targetIndex}.`);
         } catch (e) {
-          // Log error but continue trying to sort other folders
-          console.error(`Failed to move folder '${folderName}':`, e);
+          console.error(`Failed to move folder '${name}' to index ${rule.desiredIndex}:`, e);
         }
       }
     }
