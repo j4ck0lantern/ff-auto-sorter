@@ -96,17 +96,27 @@ async function handleBookmarkCreated(id, bookmark) {
 
 /* --- NEW: Gemini API Integration --- */
 async function getGeminiSuggestion(bookmark, sorterConfig) {
-  // 1. --- Check Cache First ---
-  const { geminiCache = {} } = await browser.storage.local.get('geminiCache');
-  const cachedData = geminiCache[bookmark.url];
+  // 1. --- Check Bookmark Title for Existing Data ---
+  const title = bookmark.title || "";
+  const tagRegex = / \[gemini-folder:(.*?)\] \[gemini-wordsoup:(.*?)\] \[gemini-timestamp:(\d+)\]/;
+  const match = title.match(tagRegex);
   const oneYearAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
 
-  if (cachedData && cachedData.timestamp > oneYearAgo) {
-    console.log(`Using cached Gemini suggestion for: ${bookmark.url}`);
-    return cachedData;
+  if (match) {
+    const [, folder, wordSoup, timestampStr] = match;
+    const timestamp = parseInt(timestampStr, 10);
+
+    if (timestamp > oneYearAgo) {
+      console.log(`Using fresh Gemini data from bookmark title for: ${bookmark.url}`);
+      // The description is the title minus the tags.
+      const description = title.replace(tagRegex, "").trim();
+      return { folder, description, wordSoup, timestamp };
+    } else {
+      console.log(`Stale Gemini data found in title for: ${bookmark.url}. Re-fetching.`);
+    }
   }
 
-  // 2. --- Proceed with API Call if No Valid Cache ---
+  // 2. --- Proceed with API Call if No Valid Data in Title ---
   const { geminiApiKey } = await browser.storage.local.get('geminiApiKey');
   if (!geminiApiKey) {
     console.log("Gemini API key not found. Skipping AI suggestion.");
@@ -158,16 +168,21 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
     if (jsonMatch) {
       const suggestion = JSON.parse(jsonMatch[0]);
 
-      // --- 3. Store in Cache ---
-      const newCacheEntry = {
-        ...suggestion,
-        timestamp: Date.now()
-      };
-      geminiCache[bookmark.url] = newCacheEntry;
-      await browser.storage.local.set({ geminiCache });
-      console.log(`Cached new Gemini suggestion for: ${bookmark.url}`);
+      const timestamp = Date.now();
 
-      return suggestion;
+      // --- 3. Update Bookmark Title with Gemini Data ---
+      const geminiTags = ` [gemini-folder:${suggestion.folder}] [gemini-wordsoup:${suggestion.wordSoup}] [gemini-timestamp:${timestamp}]`;
+      const newTitle = `${suggestion.description}${geminiTags}`;
+
+      try {
+        await browser.bookmarks.update(bookmark.id, { title: newTitle });
+        console.log(`Updated bookmark title for: ${bookmark.url}`);
+      } catch (e) {
+        console.error("Error updating bookmark title:", e);
+      }
+
+      // Return the suggestion object, including the new timestamp, for the next step.
+      return { ...suggestion, timestamp };
     } else {
       console.error("Could not parse JSON from Gemini response:", text);
       return null;
@@ -195,8 +210,10 @@ async function categorizeBookmark(bookmark) {
   // --- NEW: Gemini API Integration ---
   const geminiSuggestion = await getGeminiSuggestion(bookmark, sorterConfig);
 
-  // Combine title, URL, and Gemini's word soup for a better keyword match
-  const searchableText = `${bookmark.title.toLowerCase()} ${bookmark.url.toLowerCase()} ${geminiSuggestion ? geminiSuggestion.wordSoup : ''}`;
+  // Use the description from Gemini if available, otherwise the original title.
+  // The original title is cleaned of any pre-existing gemini tags.
+  const cleanTitle = bookmark.title.replace(/ \[gemini-folder:.*?\] \[gemini-wordsoup:.*?\] \[gemini-timestamp:\d+\]$/, "").trim();
+  const searchableText = `${cleanTitle.toLowerCase()} ${bookmark.url.toLowerCase()} ${geminiSuggestion ? geminiSuggestion.wordSoup : ''}`;
   let matchedRule = null;
 
   // --- CHANGE: Iterate over the array to respect priority order ---
@@ -260,7 +277,6 @@ async function categorizeBookmark(bookmark) {
   // --- Start Gemini Integration ---
   if (geminiSuggestion && geminiSuggestion.folder) {
     const matchedFolder = geminiSuggestion.folder;
-    const newDescription = geminiSuggestion.description;
 
     console.log(`Gemini suggested folder: ${matchedFolder}`);
 
@@ -275,21 +291,15 @@ async function categorizeBookmark(bookmark) {
         geminiMatchedRule ? geminiMatchedRule.index : undefined
       );
 
-      // Move the bookmark
+      // Move the bookmark if it's not already in the correct folder
       if (bookmark.parentId !== sorterFolderId) {
         await browser.bookmarks.move(bookmark.id, { parentId: sorterFolderId });
-        console.log(`Moved '${bookmark.title}' to '${matchedFolder}' folder.`);
-      }
-
-      // Rename the bookmark with the new description
-      if (newDescription && bookmark.title !== newDescription) {
-        await browser.bookmarks.update(bookmark.id, { title: newDescription });
-        console.log(`Renamed bookmark to: '${newDescription}'`);
+        console.log(`Moved bookmark to '${matchedFolder}' based on Gemini suggestion.`);
       }
     } catch (e) {
       console.error("Error processing Gemini suggestion:", e);
     }
-    return; // Stop further processing
+    return; // Stop further processing, as Gemini suggestion takes precedence
   }
   // --- End Gemini Integration ---
 
