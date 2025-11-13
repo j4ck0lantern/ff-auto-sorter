@@ -37,9 +37,15 @@
 
   <p>Each object in the array can have three keys:</p>
   <ul>
-      <li><code>"folder"</code>: (Required) A string for the folder path. Use <code>/</code> to create subfolders (e.g., <code>"Programming/Web"</code>).</li>
-      <li><code>"config"</code>: (Required) An object containing your matching rules (see below).</li>
-      <li><code>"static"</code>: (Optional) A boolean (<code>true</code> or <code>false</code>). If <code>true</code>, the top-level folder will be locked to the position it has in this config file. If <code>false</code> or omitted, the folder will be moved to the top of the bookmarks bar for easy access when a new bookmark is added to it. <strong>Note:</strong> This only applies to the top-level folder in a path.</li>
+    <li><code>"folder"</code>: (Required) A string for the folder path. Use <code>/</code> to create subfolders (e.g., <code>"Programming/Web"</code>).</li>
+    <li><code>"config"</code>: (Required) An object containing your matching rules (see below).</li>
+    <li><code>"index"</code>: (Optional) A number or an array of numbers that specifies the folder's position (zero-based).
+      <ul>
+        <li>If a number (e.g., <code>0</code>), it sets the position of the top-level folder.</li>
+        <li>If an array (e.g., <code>[0, 1]</code>), it sets the position of folders in the path (<code>"Folder/Subfolder"</code> would place "Folder" at index 0 and "Subfolder" at index 1 inside "Folder").</li>
+        <li>If omitted, the folder will be moved to the top (index 0) when a new bookmark is added to it.</li>
+      </ul>
+    </li>
   </ul>
 
   <p>The <code>"config"</code> object contains your matching rules:</p>
@@ -58,25 +64,34 @@
   <code class="block">
 [
   {
-    "folder": "Important Documents",
-    "static": true,
-    "config": {
-      "keywords": ["receipt", "invoice", "tax"],
-      "comment": "This folder will stay at the top."
-    }
-  },
-  {
     "folder": "Programming/Web",
+    "index": [0, 1],
     "config": {
-      "keywords": ["react", "css", "node"],
-      "comment": "This folder will move to the top when a bookmark is added."
+      "keywords": ["javascript", "react"],
+      "comment": "Places 'Programming' at the top, and 'Web' at index 1 inside it."
     }
   },
   {
-    "folder": "Programming",
+    "folder": "Programming/Python",
+    "index": [0, 0],
     "config": {
-      "keywords": ["github", "stackoverflow"],
-      "comment": "This is a catch-all that will also move."
+      "keywords": ["python", "django"],
+      "comment": "Places 'Python' at the top of the 'Programming' folder."
+    }
+  },
+  {
+    "folder": "Utilities",
+    "index": 1,
+    "config": {
+      "keywords": ["converter", "tool"],
+      "comment": "This folder will be locked at index 1 on the toolbar."
+    }
+  },
+  {
+    "folder": "Gaming",
+    "config": {
+      "keywords": ["gaming", "steam"],
+      "comment": "This folder will move to the top when a bookmark is added."
     }
   }
 ]
