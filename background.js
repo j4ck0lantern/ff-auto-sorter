@@ -94,6 +94,67 @@ async function handleBookmarkCreated(id, bookmark) {
   await categorizeBookmark(bookmark);
 }
 
+/* --- NEW: Gemini API Integration --- */
+async function getGeminiSuggestion(bookmark, sorterConfig) {
+  const { geminiApiKey } = await browser.storage.local.get('geminiApiKey');
+  if (!geminiApiKey) {
+    console.log("Gemini API key not found. Skipping AI suggestion.");
+    return null;
+  }
+
+  const folderList = sorterConfig.map(rule => rule.folder).join(', ');
+
+  const prompt = `
+    Analyze the content of the webpage at this URL: ${bookmark.url}
+
+    Here is a list of available bookmark folders:
+    ${folderList}
+
+    Based on the content of the page, please perform two tasks:
+    1. Choose the single most relevant folder from the list provided.
+    2. Write a concise, descriptive new name for the bookmark, exactly 8 words long.
+
+    Return your answer as a single JSON object with two keys: "folder" and "description".
+    For example:
+    {
+      "folder": "Programming/Web",
+      "description": "A comprehensive guide to modern CSS techniques and layouts"
+    }
+  `;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`Gemini API request failed with status ${response.status}:`, errorBody);
+      return null;
+    }
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+
+    // Clean the response text to extract the JSON object
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    } else {
+      console.error("Could not parse JSON from Gemini response:", text);
+      return null;
+    }
+
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    return null;
+  }
+}
+
 /* --- Bookmark Categorization Logic (HEAVILY UPDATED) --- */
 async function categorizeBookmark(bookmark) {
   // Ignore folders
@@ -169,6 +230,45 @@ async function categorizeBookmark(bookmark) {
     }
   }
 
+  // --- NEW: Gemini API Integration ---
+  const geminiSuggestion = await getGeminiSuggestion(bookmark, sorterConfig);
+
+  if (geminiSuggestion && geminiSuggestion.folder) {
+    const matchedFolder = geminiSuggestion.folder;
+    const newDescription = geminiSuggestion.description;
+
+    console.log(`Gemini suggested folder: ${matchedFolder}`);
+
+    // Find the rule that corresponds to the Gemini-suggested folder
+    const geminiMatchedRule = sorterConfig.find(rule => rule.folder === matchedFolder);
+
+    try {
+      const baseFolderId = "toolbar_____";
+      const sorterFolderId = await findOrCreateFolderPath(
+        matchedFolder,
+        baseFolderId,
+        geminiMatchedRule ? geminiMatchedRule.index : undefined
+      );
+
+      // Move the bookmark
+      if (bookmark.parentId !== sorterFolderId) {
+        await browser.bookmarks.move(bookmark.id, { parentId: sorterFolderId });
+        console.log(`Moved '${bookmark.title}' to '${matchedFolder}' folder.`);
+      }
+
+      // Rename the bookmark with the new description
+      if (newDescription && bookmark.title !== newDescription) {
+        await browser.bookmarks.update(bookmark.id, { title: newDescription });
+        console.log(`Renamed bookmark to: '${newDescription}'`);
+      }
+    } catch (e) {
+      console.error("Error processing Gemini suggestion:", e);
+    }
+    return; // Stop further processing
+  }
+  // --- End Gemini Integration ---
+
+
   if (matchedRule) {
     console.log(`Bookmark matches rule for folder: ${matchedRule.folderPath}`);
     try {
@@ -186,7 +286,7 @@ async function categorizeBookmark(bookmark) {
       // --- CHANGE: Check if bookmark is already in the correct folder ---
       if (bookmark.parentId !== sorterFolderId) {
         await browser.bookmarks.move(bookmark.id, { parentId: sorterFolderId });
-        console.log(`Moved '${bookmark.title}' to '${matchedFolder}' folder.`);
+        console.log(`Moved '${bookmark.title}' to '${matchedRule.folderPath}' folder.`);
       } else {
         console.log(`'${bookmark.title}' is already in the correct folder.`);
       }
