@@ -28,6 +28,16 @@
 </head>
 <body>
   <h1>Auto Sorter Options</h1>
+  <h2>Gemini API Configuration</h2>
+  <p>To enable AI-powered descriptions and folder suggestions, enter your Gemini API key below.</p>
+  <label for="apiKey">Gemini API Key:</label>
+  <input type="text" id="apiKey" style="width: 400px;">
+  <button id="saveApiKey">Save API Key</button>
+  <div id="apiKeyStatus"></div>
+
+  <hr style="margin: 20px 0;">
+
+  <h2>Folder Configuration</h2>
   <p>
     Configure your categories below. The configuration must be a JSON <strong>Array</strong> (starts with <code>[</code> ... <code>]</code>).
   </p>

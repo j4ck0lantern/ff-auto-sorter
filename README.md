@@ -47,6 +47,23 @@ Here is an example of the default configuration:
 
 To add your own rules, simply modify the JSON in the options page and click "Save".
 
+### New: AI-Powered Sorting with Gemini
+
+This extension now supports using the Gemini API to automatically generate a descriptive name for your bookmarks and find the best folder for them.
+
+### Gemini Configuration
+
+1.  **Get a Gemini API Key**:
+    *   Visit the [Google AI for Developers](https://ai.google.dev/) website.
+    *   Create a new project and enable the Gemini API.
+    *   Generate an API key.
+
+2.  **Add the API Key to the Extension**:
+    *   Open the extension's options page.
+    *   Paste your Gemini API key into the "Gemini API Key" field and click "Save API Key".
+
+Once configured, the extension will prioritize Gemini's suggestions for new bookmarks. If the API key is not provided or the API call fails, it will fall back to the keyword and regex-based sorting.
+
 ## Installation (Firefox)
 
 To install the extension in Firefox, follow these steps:
