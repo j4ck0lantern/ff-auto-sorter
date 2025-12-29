@@ -525,6 +525,18 @@ browser.runtime.onMessage.addListener(async (message) => {
         sorterConfig = (await browser.storage.local.get("sorterConfig")).sorterConfig;
       }
 
+      // Load AI Config for Speed
+      let aiConfig;
+      try {
+        const sync = await browser.storage.sync.get("aiConfig");
+        aiConfig = sync.aiConfig;
+      } catch (e) { }
+      if (!aiConfig) {
+        const local = await browser.storage.local.get("aiConfig");
+        aiConfig = local.aiConfig;
+      }
+      const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
+
       for (const b of bookmarks) {
         scanProgress.current++;
         if (scanProgress.current % 10 === 0) broadcastState();
@@ -534,21 +546,6 @@ browser.runtime.onMessage.addListener(async (message) => {
 
         scanProgress.detail = `AI: ${b.title}`;
         broadcastState();
-
-        // Dynamic Delay
-        const speed = (sorterConfig && sorterConfig.aiConfig && sorterConfig.aiConfig.speed)
-          ? sorterConfig.aiConfig.speed
-          : 1500;
-
-        // Wait... actually sorterConfig structure in storage might be different. 
-        // In lines 517-525 we load `sorterConfig` which is the ARRAY of rules.
-        // `aiConfig` is stored separately!
-
-        let aiDelay = 1500;
-        try {
-          const { aiConfig } = await browser.storage.local.get("aiConfig"); // Sync fallback handled in getAISuggestionPrompt normally, but we need delay here.
-          if (aiConfig && aiConfig.speed) aiDelay = aiConfig.speed;
-        } catch (e) { }
 
         await delay(aiDelay);
         await processSingleBookmarkAI(b);
