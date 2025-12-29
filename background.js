@@ -495,7 +495,7 @@ browser.runtime.onMessage.addListener(async (message) => {
         scanProgress.current++;
         scanProgress.detail = b.title || b.url; // Fallback
         broadcastState();
-        await delay(50); // Yield 50ms to allow UI update visibility (User Request)
+        await delay(100); // Yield 100ms for clear visibility (User Request)
         await organizeBookmark(b);
       }
       await pruneEmptyFolders();
