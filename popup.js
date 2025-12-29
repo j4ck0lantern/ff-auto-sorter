@@ -70,37 +70,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateUI(state) {
     if (state.isScanning) {
       setButtonsDisabled(true);
-      // Replace "blue" with "working"
       updateStatus("Task in progress...", "working");
-      // ...
-      if (state.lastResult) {
-        if (state.lastResult.success) {
-          updateStatus("Task Complete!", "success");
-        } else if (state.lastResult.error) {
-          updateStatus(`Error: ${state.lastResult.error}`, "error");
-        }
-      } else {
-        updateStatus("Ready");
-      }
-      // ...
-      updateStatus("Working...", "working");
-    } else {
-      setButtonsDisabled(false);
-      updateStatus("Done.", "success");
-      // ...
-      updateStatus("Starting...", "working");
-      // ...
-      updateStatus(response.error, "error");
-      // ...
-      updateStatus("Failed to start.", "error");
       updateProgress(state.progress.current, state.progress.total, state.progress.detail);
     } else {
       setButtonsDisabled(false);
       progressContainer.style.display = 'none';
 
-      // If we just finished a scan (could rely on a stored flag or just let the user see 'Ready')
-      // For now, if not scanning, we just show ready or the last status if persisted? 
-      // Let's check if there was a recent completion message.
       if (state.lastResult) {
         if (state.lastResult.success) {
           updateStatus("Task Complete!", "success");
