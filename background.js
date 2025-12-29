@@ -33,7 +33,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
   // NEW: Sort Selected Tabs
   browser.menus.create({
     id: "sort-selected-tabs",
-    title: "Sort Selected Tabs",
+    title: "Bookmark and AI Sort Tabs 🤖",
     contexts: ["tab"]
   });
 });
