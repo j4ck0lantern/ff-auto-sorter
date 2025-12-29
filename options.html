@@ -28,12 +28,40 @@
 </head>
 <body>
   <h1>Auto Sorter Options</h1>
-  <h2>Gemini API Configuration</h2>
-  <p>To enable AI-powered descriptions and folder suggestions, enter your Gemini API key below.</p>
-  <label for="apiKey">Gemini API Key:</label>
-  <input type="text" id="apiKey" style="width: 400px;">
-  <button id="saveApiKey">Save API Key</button>
-  <div id="apiKeyStatus"></div>
+  <h2>AI Configuration</h2>
+  <p>To enable AI-powered descriptions and folder suggestions, configure your AI provider below.</p>
+
+  <label for="aiProvider">Provider:</label>
+  <select id="aiProvider" style="margin-bottom: 15px;">
+    <option value="gemini">Google Gemini</option>
+    <option value="openai">OpenAI Compatible</option>
+  </select>
+
+  <!-- Gemini Config -->
+  <div id="geminiConfig" class="provider-config">
+    <p style="margin-top: 0;">Get your API key from Google AI Studio.</p>
+    <label for="geminiApiKey">Gemini API Key:</label>
+    <input type="text" id="geminiApiKey" style="width: 400px;">
+  </div>
+
+  <!-- OpenAI Config -->
+  <div id="openaiConfig" class="provider-config" style="display:none;">
+    <p style="margin-top: 0;">Configure any OpenAI-compatible service (OpenAI, LocalAI, Ollama, etc.).</p>
+
+    <label for="openaiBaseUrl">Base URL:</label>
+    <input type="text" id="openaiBaseUrl" placeholder="https://api.openai.com/v1" style="width: 400px;">
+    <br><br>
+
+    <label for="openaiApiKey">API Key:</label>
+    <input type="password" id="openaiApiKey" placeholder="sk-..." style="width: 400px;">
+    <br><br>
+
+    <label for="openaiModel">Model:</label>
+    <input type="text" id="openaiModel" placeholder="gpt-3.5-turbo" style="width: 400px;">
+  </div>
+
+  <button id="saveAiConfig">Save AI Settings</button>
+  <div id="aiConfigStatus"></div>
 
   <hr style="margin: 20px 0;">
 

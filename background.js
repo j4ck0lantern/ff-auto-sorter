@@ -94,9 +94,10 @@ async function handleBookmarkCreated(id, bookmark) {
   await categorizeBookmark(bookmark);
 }
 
-/* --- NEW: Gemini API Integration --- */
-async function getGeminiSuggestion(bookmark, sorterConfig) {
+/* --- NEW: AI API Integration (Generic) --- */
+async function getAISuggestion(bookmark, sorterConfig) {
   // 1. --- Check Bookmark Title for Existing Data ---
+  // Note: We continue to use "gemini-" tags for compatibility with existing data
   const title = bookmark.title || "";
   const tagRegex = / \[gemini-folder:(.*?)\] \[gemini-wordsoup:(.*?)\] \[gemini-timestamp:(\d+)\]/;
   const match = title.match(tagRegex);
@@ -107,24 +108,27 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
     const timestamp = parseInt(timestampStr, 10);
 
     if (timestamp > oneYearAgo) {
-      console.log(`Using fresh Gemini data from bookmark title for: ${bookmark.url}`);
+      console.log(`Using fresh AI data from bookmark title for: ${bookmark.url}`);
       // The description is the title minus the tags.
       const description = title.replace(tagRegex, "").trim();
       return { folder, description, wordSoup, timestamp };
     } else {
-      console.log(`Stale Gemini data found in title for: ${bookmark.url}. Re-fetching.`);
+      console.log(`Stale AI data found in title for: ${bookmark.url}. Re-fetching.`);
     }
   }
 
-  // 2. --- Proceed with API Call if No Valid Data in Title ---
-  const { geminiApiKey } = await browser.storage.local.get('geminiApiKey');
-  if (!geminiApiKey) {
-    console.log("Gemini API key not found. Skipping AI suggestion.");
+  // 2. --- Retrieve AI Configuration ---
+  const { aiConfig, geminiApiKey } = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
+
+  // Determine provider, defaulting to 'gemini' if not set but key exists
+  let provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
+
+  if (!provider) {
+    console.log("No AI provider configured. Skipping AI suggestion.");
     return null;
   }
 
   const folderList = sorterConfig.map(rule => rule.folder).join(', ');
-
   const prompt = `
     Analyze the content of the webpage at this URL: ${bookmark.url}
 
@@ -145,32 +149,84 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
     }
   `;
 
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    });
+  let responseText = "";
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`Gemini API request failed with status ${response.status}:`, errorBody);
-      return null;
+  try {
+    if (provider === 'gemini') {
+      // Use configured key or fallback to legacy key
+      const apiKey = (aiConfig && aiConfig.apiKey) ? aiConfig.apiKey : geminiApiKey;
+      if (!apiKey) {
+        console.log("Gemini API key missing.");
+        return null;
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`Gemini API request failed with status ${response.status}:`, errorBody);
+        return null;
+      }
+
+      const data = await response.json();
+      responseText = data.candidates[0].content.parts[0].text;
+
+    } else if (provider === 'openai') {
+      const { baseUrl, apiKey, model } = aiConfig;
+      if (!baseUrl || !model) {
+        console.log("OpenAI configuration missing (Base URL or Model).");
+        return null;
+      }
+
+      // Ensure baseUrl doesn't end with slash if we append /chat/completions
+      // But standard is usually providing the root API url.
+      // Let's assume user provides "https://api.openai.com/v1"
+      const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: "You are a helpful assistant that outputs strictly valid JSON." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.2
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`OpenAI API request failed with status ${response.status}:`, errorBody);
+        return null;
+      }
+
+      const data = await response.json();
+      responseText = data.choices[0].message.content;
     }
 
-    const data = await response.json();
-    const text = data.candidates[0].content.parts[0].text;
-
     // Clean the response text to extract the JSON object
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const suggestion = JSON.parse(jsonMatch[0]);
-
       const timestamp = Date.now();
 
-      // --- 3. Update Bookmark Title with Gemini Data ---
+      // --- 3. Update Bookmark Title with Data ---
+      // We keep using gemini- prefixes for consistency
       const geminiTags = ` [gemini-folder:${suggestion.folder}] [gemini-wordsoup:${suggestion.wordSoup}] [gemini-timestamp:${timestamp}]`;
       const newTitle = `${suggestion.description}${geminiTags}`;
 
@@ -181,15 +237,15 @@ async function getGeminiSuggestion(bookmark, sorterConfig) {
         console.error("Error updating bookmark title:", e);
       }
 
-      // Return the suggestion object, including the new timestamp, for the next step.
+      // Return the suggestion object
       return { ...suggestion, timestamp };
     } else {
-      console.error("Could not parse JSON from Gemini response:", text);
+      console.error("Could not parse JSON from AI response:", responseText);
       return null;
     }
 
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
+    console.error(`Error calling ${provider} API:`, error);
     return null;
   }
 }
@@ -207,13 +263,13 @@ async function categorizeBookmark(bookmark) {
     return;
   }
 
-  // --- NEW: Gemini API Integration ---
-  const geminiSuggestion = await getGeminiSuggestion(bookmark, sorterConfig);
+  // --- NEW: AI API Integration ---
+  const aiSuggestion = await getAISuggestion(bookmark, sorterConfig);
 
-  // Use the description from Gemini if available, otherwise the original title.
-  // The original title is cleaned of any pre-existing gemini tags.
+  // Use the description from AI if available, otherwise the original title.
+  // The original title is cleaned of any pre-existing tags.
   const cleanTitle = bookmark.title.replace(/ \[gemini-folder:.*?\] \[gemini-wordsoup:.*?\] \[gemini-timestamp:\d+\]$/, "").trim();
-  const searchableText = `${cleanTitle.toLowerCase()} ${bookmark.url.toLowerCase()} ${geminiSuggestion ? geminiSuggestion.wordSoup : ''}`;
+  const searchableText = `${cleanTitle.toLowerCase()} ${bookmark.url.toLowerCase()} ${aiSuggestion ? aiSuggestion.wordSoup : ''}`;
   let matchedRule = null;
 
   // --- CHANGE: Iterate over the array to respect priority order ---

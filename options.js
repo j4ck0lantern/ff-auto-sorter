@@ -2,46 +2,114 @@ document.addEventListener('DOMContentLoaded', () => {
   const configText = document.getElementById('config');
   const saveButton = document.getElementById('saveButton');
   const statusEl = document.getElementById('status');
-  const apiKeyInput = document.getElementById('apiKey');
-  const saveApiKeyButton = document.getElementById('saveApiKey');
-  const apiKeyStatusEl = document.getElementById('apiKeyStatus');
 
-  // Load the current API key from storage
-  async function loadApiKey() {
+  // AI Config Elements
+  const aiProviderSelect = document.getElementById('aiProvider');
+  const geminiConfigDiv = document.getElementById('geminiConfig');
+  const openaiConfigDiv = document.getElementById('openaiConfig');
+  const geminiApiKeyInput = document.getElementById('geminiApiKey');
+  const openaiBaseUrlInput = document.getElementById('openaiBaseUrl');
+  const openaiApiKeyInput = document.getElementById('openaiApiKey');
+  const openaiModelInput = document.getElementById('openaiModel');
+  const saveAiConfigButton = document.getElementById('saveAiConfig');
+  const aiConfigStatusEl = document.getElementById('aiConfigStatus');
+
+  // Toggle config sections based on provider selection
+  aiProviderSelect.addEventListener('change', () => {
+    if (aiProviderSelect.value === 'gemini') {
+      geminiConfigDiv.style.display = 'block';
+      openaiConfigDiv.style.display = 'none';
+    } else {
+      geminiConfigDiv.style.display = 'none';
+      openaiConfigDiv.style.display = 'block';
+    }
+  });
+
+  // Load the current AI config from storage
+  async function loadAIConfig() {
     try {
-      const { geminiApiKey } = await browser.storage.local.get('geminiApiKey');
-      if (geminiApiKey) {
-        apiKeyInput.value = geminiApiKey;
+      const { aiConfig, geminiApiKey } = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
+
+      if (aiConfig) {
+        // Load existing AI config
+        aiProviderSelect.value = aiConfig.provider || 'gemini';
+
+        if (aiConfig.provider === 'openai') {
+          openaiBaseUrlInput.value = aiConfig.baseUrl || '';
+          openaiApiKeyInput.value = aiConfig.apiKey || '';
+          openaiModelInput.value = aiConfig.model || '';
+        } else {
+          // Default to Gemini
+          geminiApiKeyInput.value = aiConfig.apiKey || '';
+        }
+      } else if (geminiApiKey) {
+        // Migration: Old user with only geminiApiKey
+        console.log("Migrating legacy Gemini API key...");
+        aiProviderSelect.value = 'gemini';
+        geminiApiKeyInput.value = geminiApiKey;
+      } else {
+        // No config found, defaults
+        aiProviderSelect.value = 'gemini';
       }
+
+      // Trigger change event to set correct visibility
+      aiProviderSelect.dispatchEvent(new Event('change'));
+
     } catch (e) {
-      console.error("Error loading API key:", e);
-      apiKeyStatusEl.textContent = `Error loading API key: ${e.message}`;
-      apiKeyStatusEl.style.color = 'red';
+      console.error("Error loading AI config:", e);
+      aiConfigStatusEl.textContent = `Error loading AI config: ${e.message}`;
+      aiConfigStatusEl.style.color = 'red';
     }
   }
 
-  // Save the new API key to storage
-  async function saveApiKey() {
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      apiKeyStatusEl.textContent = "API key cannot be empty.";
-      apiKeyStatusEl.style.color = 'red';
-      return;
+  // Save the AI config to storage
+  async function saveAIConfig() {
+    const provider = aiProviderSelect.value;
+    const newConfig = { provider };
+
+    if (provider === 'gemini') {
+      const key = geminiApiKeyInput.value.trim();
+      if (!key) {
+        showStatus(aiConfigStatusEl, "Gemini API key cannot be empty.", 'red');
+        return;
+      }
+      newConfig.apiKey = key;
+
+      // Also save to legacy key for safety/compatibility if needed,
+      // but ideally we switch to using aiConfig everywhere.
+      // For now, let's keep geminiApiKey in sync if provider is gemini.
+      await browser.storage.local.set({ geminiApiKey: key });
+
+    } else if (provider === 'openai') {
+      const baseUrl = openaiBaseUrlInput.value.trim();
+      const key = openaiApiKeyInput.value.trim();
+      const model = openaiModelInput.value.trim();
+
+      if (!baseUrl || !model) { // Key might be optional for some local setups
+        showStatus(aiConfigStatusEl, "Base URL and Model are required.", 'red');
+        return;
+      }
+      newConfig.baseUrl = baseUrl;
+      newConfig.apiKey = key;
+      newConfig.model = model;
     }
 
     try {
-      await browser.storage.local.set({ geminiApiKey: apiKey });
-      apiKeyStatusEl.textContent = "API key saved!";
-      apiKeyStatusEl.style.color = 'green';
-      setTimeout(() => apiKeyStatusEl.textContent = "", 3000);
+      await browser.storage.local.set({ aiConfig: newConfig });
+      showStatus(aiConfigStatusEl, "AI Settings saved!", 'green');
     } catch (e) {
-      console.error("Error saving API key:", e);
-      apiKeyStatusEl.textContent = `Error saving API key: ${e.message}`;
-      apiKeyStatusEl.style.color = 'red';
+      console.error("Error saving AI config:", e);
+      showStatus(aiConfigStatusEl, `Error saving AI config: ${e.message}`, 'red');
     }
   }
 
-  // Load the current config from storage
+  function showStatus(element, message, color) {
+    element.textContent = message;
+    element.style.color = color;
+    setTimeout(() => element.textContent = "", 3000);
+  }
+
+  // Load the current folder sorter config from storage
   async function loadConfig() {
     try {
       const { sorterConfig } = await browser.storage.local.get('sorterConfig');
@@ -57,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Save the new config to storage
+  // Save the new folder sorter config to storage
   async function saveConfig() {
     let config;
     try {
@@ -70,18 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       await browser.storage.local.set({ sorterConfig: config });
-      statusEl.textContent = "Configuration saved!";
-      statusEl.style.color = 'green';
-      setTimeout(() => statusEl.textContent = "", 3000);
+      showStatus(statusEl, "Configuration saved!", 'green');
     } catch (e) {
       console.error("Error saving config:", e);
-      statusEl.textContent = `Error saving config: ${e.message}`;
-      statusEl.style.color = 'red';
+      showStatus(statusEl, `Error saving config: ${e.message}`, 'red');
     }
   }
 
   saveButton.addEventListener('click', saveConfig);
-  saveApiKeyButton.addEventListener('click', saveApiKey);
+  saveAiConfigButton.addEventListener('click', saveAIConfig);
+
   loadConfig();
-  loadApiKey();
+  loadAIConfig();
 });
