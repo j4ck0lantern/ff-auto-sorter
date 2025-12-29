@@ -671,11 +671,8 @@ browser.runtime.onMessage.addListener(async (message) => {
               Bookmarks:
               ${inputList}
               
-              Output strictly JSON array with two types on entries:
-              [ 
-                { "type": "new", "folder": "NewPath", "keywords": ["k1", "k2"], "bookmarkCount": 3 },
-                { "type": "refine", "folder": "ExistingPath", "addKeywords": ["missingK1", "missingK2"], "bookmarkCount": 2 }
-              ]
+              Output strictly JSON array:
+              [ { "type": "new", "folder": "Category", "keywords": ["k1"], "bookmarkCount": 1 } ]
           `;
       }
 
@@ -692,20 +689,11 @@ browser.runtime.onMessage.addListener(async (message) => {
         aiConfig = local.aiConfig;
         geminiApiKey = local.geminiApiKey;
       }
-      // Mock config object if needed for fetchAI helper to work generically
-      // But fetchAI takes "promptData" which needs specific keys.
-      // Let's reconstruct promptData manually.
 
       let provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
       if (!provider) throw new Error("AI Provider not configured");
 
-      const promptData = {
-        prompt,
-        provider,
-        aiConfig,
-        geminiApiKey
-      };
-
+      const promptData = { prompt, provider, aiConfig, geminiApiKey };
       const rawResult = await fetchAI(promptData);
 
       return { suggestions: Array.isArray(rawResult) ? rawResult : [] };
@@ -714,6 +702,94 @@ browser.runtime.onMessage.addListener(async (message) => {
       console.error(e);
       return { error: e.message };
     }
+  }
+
+  // --- NEW: Collision Analysis ---
+  else if (message.action === "analyze-config-collisions") {
+    const { config } = message;
+    const result = {
+      duplicates: [],
+      substrings: [],
+      aiAnalysis: null
+    };
+
+    // 1. Static Analysis
+    const keywordMap = new Map();
+
+    config.forEach(rule => {
+      if (!rule.config.keywords) return;
+      rule.config.keywords.forEach(k => {
+        const lower = k.toLowerCase();
+        if (!keywordMap.has(lower)) keywordMap.set(lower, []);
+        keywordMap.get(lower).push(rule.folder);
+      });
+    });
+
+    // Detect Duplicates
+    for (const [kw, folders] of keywordMap.entries()) {
+      if (folders.length > 1) {
+        result.duplicates.push({ keyword: kw, folders });
+      }
+    }
+
+    // Detect Substrings
+    const keywords = Array.from(keywordMap.keys());
+    for (let i = 0; i < keywords.length; i++) {
+      for (let j = 0; j < keywords.length; j++) {
+        if (i === j) continue;
+        const k1 = keywords[i];
+        const k2 = keywords[j];
+        if (k2.includes(k1)) {
+          const f1 = keywordMap.get(k1);
+          const f2 = keywordMap.get(k2);
+          const distinctFolders = f1.some(f => !f2.includes(f));
+          if (distinctFolders) {
+            result.substrings.push({ short: k1, long: k2, foldersShort: f1, foldersLong: f2 });
+          }
+        }
+      }
+    }
+
+    // 2. AI Semantic Analysis
+    try {
+      let aiConfig, geminiApiKey;
+      try {
+        const sync = await browser.storage.sync.get(['aiConfig', 'geminiApiKey']);
+        aiConfig = sync.aiConfig;
+        geminiApiKey = sync.geminiApiKey;
+      } catch (e) { }
+      if (!aiConfig && !geminiApiKey) {
+        const local = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
+        aiConfig = local.aiConfig;
+        geminiApiKey = local.geminiApiKey;
+      }
+
+      const provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
+
+      if (provider) {
+        const structure = config.map(c => `Folder: "${c.folder}" (Keywords: ${c.config.keywords?.join(', ') || ''})`).join('\n');
+        const prompt = `
+                Analyze this folder structure for Semantic Conflicts.
+                Configuration:
+                ${structure}
+                
+                Output JSON:
+                {
+                    "semanticIssues": [
+                        { "issue": "Description", "severity": "High|Medium", "affectedFolders": ["f1"] }
+                    ]
+                }
+             `;
+
+        const promptData = { prompt, provider, aiConfig, geminiApiKey };
+        const aiJson = await fetchAI(promptData);
+        if (aiJson && aiJson.semanticIssues) {
+          result.aiAnalysis = aiJson.semanticIssues;
+        }
+      }
+    } catch (e) { console.error("Collision AI Error", e); }
+
+    return result;
   }
 });
 

@@ -549,6 +549,8 @@
       <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
       <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart
         Suggest</button>
+      <button id="conflictAnalysisBtn" style="background: linear-gradient(45deg, #ffc107, #fd7e14); color: white;">⚠️
+        Check Conflicts</button>
       <span style="flex: 1;"></span>
       <button id="saveMainsBtn">Save All Changes</button>
     </div>
@@ -609,6 +611,25 @@
       <div class="modal-actions">
         <button id="cancelSuggestBtn" class="secondary">Cancel</button>
         <button id="applySuggestBtn" class="success">Add Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFLICT ANALYSIS MODAL -->
+  <div id="conflictModal" class="modal">
+    <div class="modal-content">
+      <h3>Configuration Conflicts</h3>
+      <p>Analyze your rules for duplicates, substrings, and semantic overlaps.</p>
+
+      <div id="conflict-loading" style="text-align: center; padding: 20px;">
+        <div style="font-size: 2rem;">🕵️‍♂️</div>
+        <p>Analyzing configuration (Static + AI)...</p>
+      </div>
+
+      <div id="conflict-results" class="hidden" style="max-height: 400px; overflow-y: auto;"></div>
+
+      <div class="modal-actions">
+        <button id="closeConflictBtn" class="secondary">Close</button>
       </div>
     </div>
   </div>

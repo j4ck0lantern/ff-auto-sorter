@@ -954,3 +954,118 @@ function applySuggestions() {
 
   showStatus(document.getElementById('mainStatus'), msg.length ? `${msg.join(' & ')}!` : "No changes applied", 'green');
 }
+
+/* --- CONFLICT ANALYSIS LOGIC --- */
+
+async function startConflictAnalysis() {
+  const modal = document.getElementById('conflictModal');
+  const loading = document.getElementById('conflict-loading');
+  const results = document.getElementById('conflict-results');
+
+  modal.classList.add('active');
+  loading.classList.remove('hidden');
+  results.classList.add('hidden');
+  results.innerHTML = '';
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      action: 'analyze-config-collisions',
+      config: configTree
+    });
+
+    loading.classList.add('hidden');
+    results.classList.remove('hidden');
+    renderConflictResults(response);
+
+  } catch (e) {
+    loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+  }
+}
+
+function renderConflictResults(data) {
+  const container = document.getElementById('conflict-results');
+  container.innerHTML = '';
+
+  if ((!data.duplicates || data.duplicates.length === 0) &&
+    (!data.substrings || data.substrings.length === 0) &&
+    (!data.aiAnalysis || data.aiAnalysis.length === 0)) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ No conflicts found! Your config looks clean.</div>';
+    return;
+  }
+
+  // 1. Duplicates
+  if (data.duplicates && data.duplicates.length > 0) {
+    const section = document.createElement('div');
+    section.innerHTML = `<h4>⚠️ Exact Duplicate Keywords</h4>`;
+    data.duplicates.forEach(d => {
+      const div = document.createElement('div');
+      div.className = 'suggestion-item'; // reuse style
+      div.style.borderLeft = '4px solid #f44336';
+      div.innerHTML = `
+         <div class="suggestion-details">
+           <strong>"${d.keyword}"</strong> appears in multiple folders:
+           <ul style="margin:5px 0 0 20px; color:#666;">
+             ${d.folders.map(f => `<li>${f}</li>`).join('')}
+           </ul>
+           <div style="font-size:0.8em; margin-top:5px; color:#d32f2f;">Fix: Remove from all but one.</div>
+         </div>
+       `;
+      section.appendChild(div);
+    });
+    container.appendChild(section);
+  }
+
+  // 2. Substrings
+  if (data.substrings && data.substrings.length > 0) {
+    const section = document.createElement('div');
+    section.innerHTML = `<h4>⚠️ Substring Conflicts</h4><p style="font-size:0.8em; color:#666;">Short keywords might accidental steal matches from specific ones.</p>`;
+    data.substrings.forEach(d => {
+      const div = document.createElement('div');
+      div.className = 'suggestion-item';
+      div.style.borderLeft = '4px solid #ff9800';
+      div.innerHTML = `
+         <div class="suggestion-details">
+           <strong>"${d.short}"</strong> is inside <strong>"${d.long}"</strong>
+           <div style="margin-top:5px; font-size:0.9em;">
+             Conflict between: <em>${d.foldersShort.join(', ')}</em> vs <em>${d.foldersLong.join(', ')}</em>
+           </div>
+         </div>
+       `;
+      section.appendChild(div);
+    });
+    container.appendChild(section);
+  }
+
+  // 3. AI Analysis
+  if (data.aiAnalysis && data.aiAnalysis.length > 0) {
+    const section = document.createElement('div');
+    section.innerHTML = `<h4>🤖 Semantic Analysis</h4>`;
+    data.aiAnalysis.forEach(d => {
+      const div = document.createElement('div');
+      div.className = 'suggestion-item';
+      div.style.borderLeft = '4px solid #9c27b0';
+      div.innerHTML = `
+         <div class="suggestion-details">
+           <strong>${d.issue}</strong>
+           <div style="margin-top:5px; font-size:0.9em;">
+             Severity: <span style="font-weight:bold; color:${d.severity === 'High' ? 'red' : 'inherit'}">${d.severity || 'Info'}</span>
+             <br>Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}
+           </div>
+         </div>
+       `;
+      section.appendChild(div);
+    });
+    container.appendChild(section);
+  }
+}
+
+// Attach Listeners
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('conflictAnalysisBtn');
+  if (btn) btn.addEventListener('click', startConflictAnalysis);
+
+  const closeBtn = document.getElementById('closeConflictBtn');
+  if (closeBtn) closeBtn.addEventListener('click', () => {
+    document.getElementById('conflictModal').classList.remove('active');
+  });
+});
