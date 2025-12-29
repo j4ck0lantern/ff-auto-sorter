@@ -167,45 +167,7 @@ function getNormalizedUrl(url) {
   }
 }
 
-/* --- Helper: Clean Tracking Params --- */
-function cleanTrackingParams(url) {
-  try {
-    const urlObj = new URL(url);
-    const params = urlObj.searchParams;
-
-    const trackingKeys = [
-      'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', // Google Analytics
-      'fbclid', // Facebook
-      'gclid', 'gclsrc', // Google Ads
-      'dclid', // DoubleClick
-      'msclkid', // Bing match id
-      'twclid', // Twitter
-      'yclid', // Yandex
-      'igshid', // Instagram
-      '_hsenc', '_hsmi', // HubSpot
-      'mc_cid', 'mc_eid', // Mailchimp
-      's_cid' // Adobe Analytics
-    ];
-
-    let changed = false;
-    for (const key of trackingKeys) {
-      if (params.has(key)) {
-        params.delete(key);
-        changed = true;
-      }
-    }
-
-    // Also clean some hash params if they mimic Query params (some SPAs do this)
-    // For now, focus on Search Params as that's the standard.
-
-    if (changed) {
-      return urlObj.toString();
-    }
-    return url;
-  } catch (e) {
-    return url;
-  }
-}
+/* --- Helper: Date Formatter --- */
 
 /* --- Helper: Date Formatter --- */
 function formatDate(timestamp) {
@@ -261,11 +223,11 @@ async function organizeBookmark(bookmark) {
   if (!sorterConfig) return;
 
   // Clean URL first
-  const cleanUrl = cleanTrackingParams(bookmark.url);
-  if (cleanUrl !== bookmark.url) {
-    await browser.bookmarks.update(bookmark.id, { url: cleanUrl });
-    bookmark.url = cleanUrl; // Update local ref
-  }
+  // const cleanUrl = cleanTrackingParams(bookmark.url);
+  // if (cleanUrl !== bookmark.url) {
+  //   await browser.bookmarks.update(bookmark.id, { url: cleanUrl });
+  //   bookmark.url = cleanUrl; // Update local ref
+  // }
 
   const dbTags = await TagDB.getTags(getNormalizedUrl(bookmark.url));
   if (dbTags.aiFolder) return; // Already AI categorized in DB
@@ -417,12 +379,9 @@ async function fetchAI(promptData) {
 
 async function processSingleBookmarkAI(bookmark) {
   const { sorterConfig } = await browser.storage.local.get("sorterConfig");
-  // Clean URL before AI processing
-  const cleanUrl = cleanTrackingParams(bookmark.url);
-  if (cleanUrl !== bookmark.url) {
-    await browser.bookmarks.update(bookmark.id, { url: cleanUrl });
-    bookmark.url = cleanUrl;
-  }
+  // Clean URL removed per user request
+  // const cleanUrl = cleanTrackingParams(bookmark.url);
+  // if (cleanUrl !== bookmark.url) { ... }
 
   const promptData = await getAISuggestionPrompt(bookmark, sorterConfig || DEFAULT_CONFIG);
   if (!promptData) return { success: false, error: "Configuration missing" };
@@ -439,7 +398,7 @@ async function processSingleBookmarkAI(bookmark) {
     try {
       await browser.bookmarks.update(bookmark.id, {
         title: result.description,
-        url: cleanUrl // Ensure cleaned URL is respected
+        url: bookmark.url // Ensure original URL is respected
       });
 
       const rule = sorterConfig ? sorterConfig.find(r => r.folder === result.folder) : null;
@@ -469,8 +428,8 @@ async function handleSortSelectedTabs() {
     });
 
     for (const tab of tabs) {
-      // 1. Clean URL
-      const cleanUrl = cleanTrackingParams(tab.url);
+      // 1. Clean URL removed
+      // const cleanUrl = cleanTrackingParams(tab.url);
 
       // 2. Create Bookmark
       // We put it in 'Unsorted' by default if no rule matches? 
@@ -486,7 +445,7 @@ async function handleSortSelectedTabs() {
 
       const bookmark = await browser.bookmarks.create({
         title: tab.title,
-        url: cleanUrl,
+        url: tab.url,
         parentId: "unfiled_____" // Default to "Other Bookmarks"
       });
 

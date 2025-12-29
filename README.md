@@ -23,7 +23,8 @@ It helps you maintain a clean, organized library of links without manual effort.
 
 ### 🛠️ Productivity Tools
 *   **Tab Sorter**: Select multiple tabs -> Right-click "Sort Selected Tabs" to bookmark, organize, and close them instantly.
-*   **URL Cleaner**: Automatically strips tracking parameters (`utm_source`, `fbclid`, etc.) before saving bookmarks.
+*   **Tab Sorter**: Sorts active tabs into bookmarks and closes them.
+*   **Deduplication**: Automatically removes duplicate bookmarks during sorting.
 *   **Configuration Sync**: Your folder rules and AI settings automatically sync across your Firefox devices (if signed in).
 *   **Dark Mode**: Fully supports your system's dark mode preference.
 
