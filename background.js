@@ -196,6 +196,45 @@ async function getAllBookmarks(node) {
 /* --- Helper: Delay --- */
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+/* --- Helpers: Concurrency --- */
+class Mutex {
+  constructor() {
+    this._queue = [];
+    this._locked = false;
+  }
+  lock() {
+    return new Promise(resolve => {
+      if (this._locked) {
+        this._queue.push(resolve);
+      } else {
+        this._locked = true;
+        resolve();
+      }
+    });
+  }
+  unlock() {
+    if (this._queue.length > 0) {
+      const next = this._queue.shift();
+      next();
+    } else {
+      this._locked = false;
+    }
+  }
+}
+const dbMutex = new Mutex();
+
+async function processInBatches(items, batchSize, taskFn) {
+  let index = 0;
+  const results = [];
+  while (index < items.length) {
+    const batch = items.slice(index, index + batchSize);
+    const promises = batch.map(item => taskFn(item));
+    results.push(...(await Promise.all(promises)));
+    index += batchSize;
+  }
+  return results;
+}
+
 /* --- State Management --- */
 let isScanning = false;
 let scanProgress = { current: 0, total: 0, detail: "" };
@@ -377,41 +416,43 @@ async function fetchAI(promptData) {
   return null;
 }
 
-async function processSingleBookmarkAI(bookmark) {
+async function processSingleBookmarkAI(bookmark, useMutex = false) {
   const { sorterConfig } = await browser.storage.local.get("sorterConfig");
-  // Clean URL removed per user request
-  // const cleanUrl = cleanTrackingParams(bookmark.url);
-  // if (cleanUrl !== bookmark.url) { ... }
 
   const promptData = await getAISuggestionPrompt(bookmark, sorterConfig || DEFAULT_CONFIG);
   if (!promptData) return { success: false, error: "Configuration missing" };
 
   const result = await fetchAI(promptData);
   if (result) {
-    // Save to DB
-    await TagDB.setTags(getNormalizedUrl(bookmark.url), {
-      aiFolder: result.folder,
-      aiKeywords: result.wordSoup,
-      time: formatDate(Date.now())
-    }, bookmark.id);
+    // LOCK DB WRITE
+    if (useMutex) await dbMutex.lock();
+    try {
+      await TagDB.setTags(getNormalizedUrl(bookmark.url), {
+        aiFolder: result.folder,
+        aiKeywords: result.wordSoup,
+        time: formatDate(Date.now())
+      }, bookmark.id);
+    } finally {
+      if (useMutex) dbMutex.unlock();
+    }
 
     try {
       await browser.bookmarks.update(bookmark.id, {
         title: result.description,
-        url: bookmark.url // Ensure original URL is respected
+        url: bookmark.url
       });
 
-      const rule = sorterConfig ? sorterConfig.find(r => r.folder === result.folder) : null;
-      const index = rule ? rule.index : undefined;
+      // Move to Suggested Folder
+      if (result.folder) {
+        const rule = sorterConfig ? sorterConfig.find(r => r.folder === result.folder) : null;
+        const index = rule ? rule.index : undefined;
+        await moveBookmarkToFolder(bookmark, result.folder, index);
+      }
+    } catch (e) { }
 
-      await moveBookmarkToFolder(bookmark, result.folder, index);
-      return { success: true, folder: result.folder };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  } else {
-    return { success: false, error: "AI returned no result" };
+    return { success: true, folder: result.folder };
   }
+  return { success: false, error: "No AI response" };
 }
 
 /* --- Feature: Sort Selected Tabs --- */
@@ -535,21 +576,33 @@ browser.runtime.onMessage.addListener(async (message) => {
         const local = await browser.storage.local.get("aiConfig");
         aiConfig = local.aiConfig;
       }
+      // const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
+
       const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
 
-      for (const b of bookmarks) {
+      // Determine Concurrency
+      // If speed is <= 200ms ("Very Fast"), allow parallel requests
+      const isFastMode = aiDelay <= 200;
+      const batchSize = isFastMode ? 5 : 1;
+
+      await processInBatches(bookmarks, batchSize, async (b) => {
         scanProgress.current++;
-        if (scanProgress.current % 10 === 0) broadcastState();
+        if (scanProgress.current % (isFastMode ? 5 : 1) === 0) broadcastState();
 
         const dbTags = await TagDB.getTags(getNormalizedUrl(b.url));
-        if (dbTags.aiFolder) continue;
+        if (dbTags.aiFolder) return;
 
         scanProgress.detail = `AI: ${b.title}`;
         broadcastState();
 
-        await delay(aiDelay);
-        await processSingleBookmarkAI(b);
-      }
+        // If serial, wait the delay. If parallel, maybe wait less or at start?
+        // For parallel, strict delay per item is tricky.
+        // We'll just delay a bit to avoid instant bursts if batchSize is huge.
+        // But for batch=5, we just run 5.
+        if (!isFastMode) await delay(aiDelay);
+
+        await processSingleBookmarkAI(b, true); // Pass true to indicate mutex needed
+      });
       await pruneEmptyFolders();
     });
   }
