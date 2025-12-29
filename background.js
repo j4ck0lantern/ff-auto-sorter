@@ -494,7 +494,7 @@ browser.runtime.onMessage.addListener(async (message) => {
       for (const b of bookmarks) {
         scanProgress.current++;
         scanProgress.detail = b.title;
-        if (scanProgress.current % 10 === 0) broadcastState();
+        broadcastState();
         await organizeBookmark(b);
       }
       await pruneEmptyFolders();
