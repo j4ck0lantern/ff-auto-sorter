@@ -478,6 +478,14 @@
         <input type="text" id="openaiModel" placeholder="gpt-4o">
       </div>
 
+      <label for="aiSpeed" style="margin-top:10px;">Processing Speed (Delay)</label>
+      <select id="aiSpeed">
+        <option value="500">Fast (0.5s) - Paid/High Limit keys</option>
+        <option value="1500" selected>Normal (1.5s) - Free Tier Safe</option>
+        <option value="3000">Slow (3s) - Conservative</option>
+        <option value="5000">Very Slow (5s)</option>
+      </select>
+
       <button id="saveAiConfig" style="margin-top: 15px;">Save AI Settings</button>
       <div id="aiStatus" style="margin-top: 10px; font-size: 0.9rem;"></div>
 
