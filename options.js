@@ -9,6 +9,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadAIConfig();
   await loadMainConfig();
 
+  // --- Theme Logic ---
+  const { themePreference } = await browser.storage.local.get("themePreference");
+  if (themePreference) {
+    document.documentElement.setAttribute('data-theme', themePreference);
+  } else {
+    // If no preference check system? Or default to auto (no attr)
+  }
+
+  const toggleBtn = document.getElementById('themeToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      // Simple toggle: If dark -> light. If light -> dark. If null (auto) -> assume system and flip it.
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      let newTheme = 'dark';
+
+      if (current === 'dark') newTheme = 'light';
+      else if (current === 'light') newTheme = 'dark';
+      else {
+        // Was auto. Flip system.
+        newTheme = isSystemDark ? 'light' : 'dark';
+      }
+
+      document.documentElement.setAttribute('data-theme', newTheme);
+      await browser.storage.local.set({ themePreference: newTheme });
+    });
+  }
+
   // 2. Setup Event Listeners
   setupAIListeners();
   setupMainListeners();

@@ -1,4 +1,28 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Theme Logic
+  const { themePreference } = await browser.storage.local.get("themePreference");
+  if (themePreference) {
+    document.documentElement.setAttribute('data-theme', themePreference);
+  }
+
+  const toggleBtn = document.getElementById('themeToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      let newTheme = 'dark';
+
+      if (current === 'dark') newTheme = 'light';
+      else if (current === 'light') newTheme = 'dark';
+      else {
+        newTheme = isSystemDark ? 'light' : 'dark';
+      }
+
+      document.documentElement.setAttribute('data-theme', newTheme);
+      await browser.storage.local.set({ themePreference: newTheme });
+    });
+  }
+
   const organizeAllBtn = document.getElementById('organizeAll');
   const classifyAllBtn = document.getElementById('classifyAll');
   const clearTagsBtn = document.getElementById('clearTags');
