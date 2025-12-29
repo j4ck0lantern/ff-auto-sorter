@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Auto Sorter Options</title>
+  <style>
+    :root {
+      --primary: #007bff;
+      --primary-hover: #0056b3;
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --border: #dee2e6;
+      --text: #212529;
+      --danger: #dc3545;
+      --success: #28a745;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar (AI & Global Settings) */
+    #sidebar {
+      width: 300px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    #main {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+    }
+
+    /* Form Elements */
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button.secondary {
+      background-color: #6c757d;
+    }
+
+    button.secondary:hover {
+      background-color: #5a6268;
+    }
+
+    button.danger {
+      background-color: var(--danger);
+    }
+
+    button.danger:hover {
+      background-color: #c82333;
+    }
+
+    button.success {
+      background-color: var(--success);
+    }
+
+    /* Tree View */
+    #tree-container {
+      flex: 1;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 4px;
+      padding: 10px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .tree-node {
+      margin-left: 20px;
+      border-left: 1px solid var(--border);
+    }
+
+    .node-content {
+      display: flex;
+      align-items: center;
+      padding: 5px;
+      border-radius: 4px;
+      background: #fff;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+    }
+
+    .node-content:hover {
+      background-color: #e9ecef;
+      border-color: #ced4da;
+    }
+
+    .folder-icon {
+      margin-right: 8px;
+      color: #ffc107;
+      font-weight: bold;
+    }
+
+    .node-title {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .node-actions {
+      display: none;
+      gap: 5px;
+    }
+
+    .node-content:hover .node-actions {
+      display: flex;
+    }
+
+    .btn-icon {
+      padding: 4px 8px;
+      font-size: 0.8rem;
+    }
+
+    /* Drag & Drop Styles */
+    .tree-node.dragging {
+      opacity: 0.5;
+    }
+
+    .node-content.drag-over-top {
+      border-top: 2px solid var(--primary);
+    }
+
+    .node-content.drag-over-bottom {
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .node-content.drag-over-inside {
+      background-color: #e2e6ea;
+      border: 2px dashed var(--primary);
+    }
+
+    /* Toolbar */
+    #toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background-color: var(--surface);
+      padding: 25px;
+      border-radius: 8px;
+      width: 500px;
+      max-width: 90%;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 10px;
+      padding: 5px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      min-height: 38px;
+    }
+
+    .tag {
+      background: #e9ecef;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .tag-close {
+      cursor: pointer;
+      color: #666;
+      font-weight: bold;
+    }
+
+    .tag-close:hover {
+      color: var(--danger);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Smart Suggest Results */
+    #suggest-results {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .suggestion-item {
+      background: #f1f3f5;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      display: flex;
+      align-items: start;
+      gap: 10px;
+    }
+
+    .suggestion-chk {
+      margin-top: 5px;
+    }
+
+    .suggestion-details {
+      flex: 1;
+    }
+
+    .suggestion-keywords {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Card Styling */
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+      /* Space between cards */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .description {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: -10px;
+      margin-bottom: 15px;
+    }
+
+    .card-ai {
+      border-top: 4px solid #007bff;
+      background-color: #f8faff;
+    }
+
+    .card-db {
+      border-top: 4px solid #ffc107;
+      background-color: #fffdf5;
+    }
+
+    .card-backup {
+      border-top: 4px solid #28a745;
+      background-color: #f6fff8;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- SIDEBAR: AI & EXPORT -->
+  <div id="sidebar">
+    <!-- CARD 1: AI CONFIG -->
+    <div class="card card-ai">
+      <h3>AI Configuration</h3>
+      <p class="description">Configure your AI provider.</p>
+
+      <label for="aiProvider">Provider</label>
+      <select id="aiProvider">
+        <option value="gemini">Google Gemini</option>
+        <option value="openai">OpenAI Compatible</option>
+      </select>
+
+      <div id="geminiConfig" class="config-section">
+        <label for="geminiApiKey">Gemini API Key</label>
+        <input type="password" id="geminiApiKey" placeholder="AIza...">
+        <small>Get key from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a></small>
+      </div>
+
+      <div id="openaiConfig" class="config-section hidden">
+        <label for="openaiBaseUrl">Base URL</label>
+        <input type="text" id="openaiBaseUrl" placeholder="https://api.openai.com/v1">
+        <label for="openaiApiKey">API Key</label>
+        <input type="password" id="openaiApiKey" placeholder="sk-...">
+        <label for="openaiModel">Model</label>
+        <input type="text" id="openaiModel" placeholder="gpt-4o">
+      </div>
+
+      <button id="saveAiConfig" style="margin-top: 15px;">Save AI Settings</button>
+      <div id="aiStatus" style="margin-top: 10px; font-size: 0.9rem;"></div>
+    </div>
+
+    <!-- CARD 2: DATABASE MANAGEMENT -->
+    <div class="card card-db">
+      <h3>Database Management</h3>
+      <p class="description">Manage the AI tag database.</p>
+
+      <label for="storageMode" style="margin-top:10px;">Storage Mode:</label>
+      <select id="storageMode" style="margin-bottom:10px;">
+        <option value="local">Local Database (Clean URLs)</option>
+        <option value="url">URL Hash (Portable, visible tags)</option>
+      </select>
+      <button id="migrateBtn" class="secondary" style="margin-left:5px; font-size:0.8rem; padding:4px 8px;">🔄 Migrate
+        Tags to this Mode</button>
+
+      <div style="background:#fff3cd; color:#856404; padding:8px; font-size:0.85rem; border-radius:4px; margin:10px 0;">
+        <strong>Note:</strong> "Backup/Restore" below only affects the <em>Local Database</em> file.
+        If using URL Hash mode, your bookmarks <em>are</em> the backup (export them via browser).
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:5px;">
+        <button id="backupDbBtn" class="btn">Backup DB</button>
+        <button id="restoreDbBtn" class="btn danger">Restore DB</button>
+        <input type="file" id="restoreDbFile" style="display:none" accept=".json">
+      </div>
+      <div id="dbStatus" class="status-msg"></div>
+    </div>
+
+    <!-- CARD 3: FOLDER CONFIG -->
+    <div class="card card-backup">
+      <h3>Folder Rules Backup</h3>
+      <p class="description">Export your folder structure and rules.</p>
+      <div style="margin-top: 10px;">
+        <button id="exportBtn" class="secondary" style="width: 100%; margin-bottom: 10px;">Export JSON</button>
+        <button id="importBtn" class="secondary" style="width: 100%;">Import JSON</button>
+        <input type="file" id="importFile" class="hidden" accept=".json">
+      </div>
+    </div>
+  </div> <!-- end sidebar -->
+
+  <!-- MAIN: FOLDER TREE -->
+  <div id="main">
+    <h2>Folder Rules</h2>
+    <div id="toolbar">
+      <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
+      <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart
+        Suggest</button>
+      <span style="flex: 1;"></span>
+      <button id="saveMainsBtn">Save All Changes</button>
+    </div>
+
+    <div id="tree-container">
+      <!-- Tree rendered here -->
+    </div>
+    <div id="mainStatus" style="margin-top: 5px;"></div>
+  </div>
+
+  <!-- EDIT FOLDER MODAL -->
+  <div id="folderModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalTitle">Edit Folder</h3>
+
+      <label>Folder Name / Path</label>
+      <input type="text" id="editFolderInput" placeholder="e.g. Programming/Web">
+      <small style="color: #666;">Use / for subfolders (e.g. Parent/Child)</small>
+
+      <div style="margin-top: 15px;">
+        <label>Keywords (Press Enter)</label>
+        <div id="keywordsContainer" class="tag-container">
+          <input type="text" id="keywordInput" style="border:none; padding: 2px; width: 100px; flex:1;"
+            placeholder="Add...">
+        </div>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <label>Regex Patterns (One per line)</label>
+        <textarea id="regexInput" rows="3" placeholder="\.pdf$"></textarea>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <label>Index (0 = Top, blank = default)</label>
+        <input type="number" id="indexInput" placeholder="Auto">
+      </div>
+
+      <div class="modal-actions">
+        <button id="cancelFolderBtn" class="secondary">Cancel</button>
+        <button id="saveFolderBtn">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SMART SUGGEST MODAL -->
+  <div id="suggestModal" class="modal">
+    <div class="modal-content">
+      <h3>AI Suggested Categories</h3>
+      <p>Select the suggestions you want to add to your configuration.</p>
+
+      <div id="suggest-loading" style="text-align: center; padding: 20px;">
+        <div style="font-size: 2rem;">🔮</div>
+        <p>Analyzing bookmarks...</p>
+      </div>
+
+      <div id="suggest-results" class="hidden"></div>
+
+      <div class="modal-actions">
+        <button id="cancelSuggestBtn" class="secondary">Cancel</button>
+        <button id="applySuggestBtn" class="success">Add Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+
+</html>

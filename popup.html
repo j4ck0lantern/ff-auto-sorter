@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #333333;
+      --status: #333;
+      --icon-filter: none;
+      --btn-bg: #e0e0e0;
+      --btn-text: #333;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #2c2c2c;
+        --text: #e0e0e0;
+        --status: #fff;
+        --icon-filter: invert(1);
+        --btn-bg: #3e3e3e;
+        --btn-text: #fff;
+      }
+
+      button:disabled {
+        opacity: 0.5 !important;
+        background-color: #444 !important;
+        color: #888 !important;
+      }
+
+      .disclaimer {
+        background-color: #332b00 !important;
+        border-color: #665200 !important;
+        color: #ddd !important;
+      }
+
+      .hint {
+        color: #aaa !important;
+      }
+    }
+
+    body {
+      font-family: sans-serif;
+      width: 350px;
+      height: 400px;
+      padding: 10px;
+      text-align: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    #icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 5px;
+    }
+
+    h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    p {
+      font-size: 14px;
+      text-align: left;
+      color: var(--text);
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      margin: 8px 0;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: left;
+      padding-left: 15px;
+    }
+
+    .primary {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .primary:hover {
+      background-color: #43A047;
+    }
+
+    .secondary {
+      background-color: #2196F3;
+      color: white;
+    }
+
+    .secondary:hover {
+      background-color: #1E88E5;
+    }
+
+    .danger {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .danger:hover {
+      background-color: #d32f2f;
+    }
+
+    .neutral {
+      background-color: var(--btn-bg);
+      color: var(--btn-text);
+      border: 1px solid #777;
+    }
+
+    .neutral:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    #status {
+      text-align: center;
+      margin-top: 10px;
+      font-weight: bold;
+      min-height: 20px;
+      margin-bottom: 5px;
+      color: var(--status);
+    }
+
+    .hint {
+      font-size: 14px;
+      color: #555;
+      font-style: normal;
+      margin: 8px 0;
+      padding: 10px;
+      background-color: transparent;
+      border: none;
+      text-align: right;
+    }
+
+    .disclaimer {
+      font-size: 11px;
+      color: #777;
+      margin-bottom: 10px;
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      padding: 5px;
+      border-radius: 4px;
+      text-align: left;
+    }
+
+    /* ... */
+  </style>
+</head>
+
+<body>
+  <img id="icon" src="icons/icon-128.png" alt="Auto Sorter Icon" style="width: 48px; height: 48px; margin-bottom:0;">
+  <h2 style="display:inline-block; vertical-align: middle; font-size: 1.5rem; margin: 0 0 10px 10px;">Auto Sorter</h2>
+
+  <div class="disclaimer">
+    ⚠️ <strong>Warning:</strong> This tool organizes (moves) and modifies your bookmarks. Please ensure you have a
+    backup of your bookmarks before proceeding.
+  </div>
+
+  <div id="status"></div>
+
+  <div class="actions">
+    <button id="organizeAll" class="primary">1. Organize All (Rules)</button>
+    <button id="classifyAll" class="secondary">2. Classify All (AI) 💰</button>
+
+    <!-- Option 3: Single Bookmark (Visual Only) -->
+    <button disabled style="background-color: #f0f0f0; color: #555; border: 1px solid #ddd; cursor: default;">
+      3. Single: Right-click &gt; "Classify with AI"
+    </button>
+
+    <button id="clearTags" class="danger">4. Clear All Tags</button>
+    <button id="openSettings" class="neutral">5. Settings</button>
+  </div>
+
+  <div id="progress-container">
+    <div id="progress-bar-wrapper">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="progress-text">0 / 0</div>
+    <div id="progress-detail">Ready</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
