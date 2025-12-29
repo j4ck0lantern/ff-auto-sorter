@@ -493,8 +493,9 @@ browser.runtime.onMessage.addListener(async (message) => {
 
       for (const b of bookmarks) {
         scanProgress.current++;
-        scanProgress.detail = b.title;
+        scanProgress.detail = b.title || b.url; // Fallback
         broadcastState();
+        await delay(5); // Yield to allow UI update visibility
         await organizeBookmark(b);
       }
       await pruneEmptyFolders();
