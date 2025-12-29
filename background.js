@@ -12,7 +12,7 @@ const DEFAULT_CONFIG = [
 ];
 
 /* --- Constants --- */
-const AI_DELAY_MS = 1500;
+
 
 /* --- On Install --- */
 browser.runtime.onInstalled.addListener(async (details) => {
@@ -495,7 +495,7 @@ browser.runtime.onMessage.addListener(async (message) => {
         scanProgress.current++;
         scanProgress.detail = b.title || b.url; // Fallback
         broadcastState();
-        await delay(5); // Yield to allow UI update visibility
+        await delay(50); // Yield 50ms to allow UI update visibility (User Request)
         await organizeBookmark(b);
       }
       await pruneEmptyFolders();
@@ -535,7 +535,22 @@ browser.runtime.onMessage.addListener(async (message) => {
         scanProgress.detail = `AI: ${b.title}`;
         broadcastState();
 
-        await delay(AI_DELAY_MS);
+        // Dynamic Delay
+        const speed = (sorterConfig && sorterConfig.aiConfig && sorterConfig.aiConfig.speed)
+          ? sorterConfig.aiConfig.speed
+          : 1500;
+
+        // Wait... actually sorterConfig structure in storage might be different. 
+        // In lines 517-525 we load `sorterConfig` which is the ARRAY of rules.
+        // `aiConfig` is stored separately!
+
+        let aiDelay = 1500;
+        try {
+          const { aiConfig } = await browser.storage.local.get("aiConfig"); // Sync fallback handled in getAISuggestionPrompt normally, but we need delay here.
+          if (aiConfig && aiConfig.speed) aiDelay = aiConfig.speed;
+        } catch (e) { }
+
+        await delay(aiDelay);
         await processSingleBookmarkAI(b);
       }
       await pruneEmptyFolders();

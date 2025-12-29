@@ -113,6 +113,14 @@ async function loadAIConfig() {
     document.getElementById('geminiApiKey').value = geminiApiKey;
   }
 
+  // Load Speed
+  const speedEl = document.getElementById('aiSpeed');
+  if (aiConfig && aiConfig.speed) {
+    speedEl.value = aiConfig.speed;
+  } else {
+    speedEl.value = "1500"; // Default
+  }
+
   // Toggle Visibility
   const updateVis = () => {
     if (providerSel.value === 'gemini') {
@@ -130,7 +138,8 @@ async function loadAIConfig() {
 function setupAIListeners() {
   document.getElementById('saveAiConfig').addEventListener('click', async () => {
     const provider = document.getElementById('aiProvider').value;
-    const newConfig = { provider };
+    const speed = document.getElementById('aiSpeed').value;
+    const newConfig = { provider, speed: parseInt(speed) };
     const statusEl = document.getElementById('aiStatus');
 
     if (provider === 'gemini') {
