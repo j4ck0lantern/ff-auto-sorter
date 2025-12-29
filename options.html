@@ -440,6 +440,12 @@
       background-color: var(--db-bg);
     }
 
+    .small-btn {
+      padding: 2px 6px;
+      font-size: 0.8em;
+      margin-left: 5px;
+    }
+
     .card-backup {
       border-top: 4px solid var(--bk-border);
       background-color: var(--bk-bg);
@@ -549,8 +555,8 @@
       <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
       <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart
         Suggest</button>
-      <button id="conflictAnalysisBtn" style="background: linear-gradient(45deg, #ffc107, #fd7e14); color: white;">⚠️
-        Check Conflicts</button>
+      <button id="staticAnalysisBtn" style="background: #ff9800; color: white;">⚠️ Syntax Check</button>
+      <button id="semanticAnalysisBtn" style="background: #9c27b0; color: white;">🤖 Semantics (AI)</button>
       <span style="flex: 1;"></span>
       <button id="saveMainsBtn">Save All Changes</button>
     </div>

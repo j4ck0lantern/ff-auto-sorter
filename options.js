@@ -957,39 +957,40 @@ function applySuggestions() {
 
 /* --- CONFLICT ANALYSIS LOGIC --- */
 
-async function startConflictAnalysis() {
+// --- STATIC ---
+async function startStaticAnalysis() {
   const modal = document.getElementById('conflictModal');
   const loading = document.getElementById('conflict-loading');
   const results = document.getElementById('conflict-results');
 
   modal.classList.add('active');
   loading.classList.remove('hidden');
+  loading.innerHTML = '<div style="font-size: 2rem;">⚠️</div><p>Checking duplicates & substrings...</p>';
   results.classList.add('hidden');
   results.innerHTML = '';
 
   try {
     const response = await browser.runtime.sendMessage({
-      action: 'analyze-config-collisions',
+      action: 'analyze-static-conflicts',
       config: configTree
     });
 
     loading.classList.add('hidden');
     results.classList.remove('hidden');
-    renderConflictResults(response);
+    renderStaticResults(response);
 
   } catch (e) {
     loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
   }
 }
 
-function renderConflictResults(data) {
+function renderStaticResults(data) {
   const container = document.getElementById('conflict-results');
   container.innerHTML = '';
 
   if ((!data.duplicates || data.duplicates.length === 0) &&
-    (!data.substrings || data.substrings.length === 0) &&
-    (!data.aiAnalysis || data.aiAnalysis.length === 0)) {
-    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ No conflicts found! Your config looks clean.</div>';
+    (!data.substrings || data.substrings.length === 0)) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ No static conflicts found!</div>';
     return;
   }
 
@@ -999,15 +1000,21 @@ function renderConflictResults(data) {
     section.innerHTML = `<h4>⚠️ Exact Duplicate Keywords</h4>`;
     data.duplicates.forEach(d => {
       const div = document.createElement('div');
-      div.className = 'suggestion-item'; // reuse style
+      div.className = 'suggestion-item';
       div.style.borderLeft = '4px solid #f44336';
+
+      let actionsHtml = d.folders.map(f => `
+           <button class="secondary small-btn" onclick="applyRemoveKeyword('${f.replace(/'/g, "\\'")}', '${d.keyword.replace(/'/g, "\\'")}')">
+             Remove from "${f}"
+           </button>
+       `).join(' ');
+
       div.innerHTML = `
          <div class="suggestion-details">
-           <strong>"${d.keyword}"</strong> appears in multiple folders:
-           <ul style="margin:5px 0 0 20px; color:#666;">
-             ${d.folders.map(f => `<li>${f}</li>`).join('')}
-           </ul>
-           <div style="font-size:0.8em; margin-top:5px; color:#d32f2f;">Fix: Remove from all but one.</div>
+           <strong>"${d.keyword}"</strong> in multiple folders:
+           <div style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;">
+             ${actionsHtml}
+           </div>
          </div>
        `;
       section.appendChild(div);
@@ -1018,38 +1025,21 @@ function renderConflictResults(data) {
   // 2. Substrings
   if (data.substrings && data.substrings.length > 0) {
     const section = document.createElement('div');
-    section.innerHTML = `<h4>⚠️ Substring Conflicts</h4><p style="font-size:0.8em; color:#666;">Short keywords might accidental steal matches from specific ones.</p>`;
+    section.innerHTML = `<h4>⚠️ Substring Conflicts</h4>`;
     data.substrings.forEach(d => {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
       div.style.borderLeft = '4px solid #ff9800';
       div.innerHTML = `
          <div class="suggestion-details">
-           <strong>"${d.short}"</strong> is inside <strong>"${d.long}"</strong>
-           <div style="margin-top:5px; font-size:0.9em;">
-             Conflict between: <em>${d.foldersShort.join(', ')}</em> vs <em>${d.foldersLong.join(', ')}</em>
+           <strong>"${d.short}"</strong> vs <strong>"${d.long}"</strong>
+           <div style="font-size:0.9em; margin-top:5px;">
+             <em>${d.foldersShort.join(', ')}</em> vs <em>${d.foldersLong.join(', ')}</em>
            </div>
-         </div>
-       `;
-      section.appendChild(div);
-    });
-    container.appendChild(section);
-  }
-
-  // 3. AI Analysis
-  if (data.aiAnalysis && data.aiAnalysis.length > 0) {
-    const section = document.createElement('div');
-    section.innerHTML = `<h4>🤖 Semantic Analysis</h4>`;
-    data.aiAnalysis.forEach(d => {
-      const div = document.createElement('div');
-      div.className = 'suggestion-item';
-      div.style.borderLeft = '4px solid #9c27b0';
-      div.innerHTML = `
-         <div class="suggestion-details">
-           <strong>${d.issue}</strong>
-           <div style="margin-top:5px; font-size:0.9em;">
-             Severity: <span style="font-weight:bold; color:${d.severity === 'High' ? 'red' : 'inherit'}">${d.severity || 'Info'}</span>
-             <br>Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}
+           <div style="margin-top:5px;">
+              <button class="secondary small-btn" onclick="applyRemoveKeyword(null, '${d.short.replace(/'/g, "\\'")}', true)">
+                Delete "${d.short}" from all folders
+              </button>
            </div>
          </div>
        `;
@@ -1059,13 +1049,150 @@ function renderConflictResults(data) {
   }
 }
 
+// --- SEMANTIC ---
+async function startSemanticAnalysis() {
+  const modal = document.getElementById('conflictModal');
+  const loading = document.getElementById('conflict-loading');
+  const results = document.getElementById('conflict-results');
+
+  modal.classList.add('active');
+  loading.classList.remove('hidden');
+  loading.innerHTML = '<div style="font-size: 2rem;">🤖</div><p>Asking AI for structural advice...</p>';
+  results.classList.add('hidden');
+  results.innerHTML = '';
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      action: 'analyze-semantic-conflicts',
+      config: configTree
+    });
+
+    loading.classList.add('hidden');
+    results.classList.remove('hidden');
+    renderSemanticResults(response);
+
+  } catch (e) {
+    loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+  }
+}
+
+function renderSemanticResults(data) {
+  const container = document.getElementById('conflict-results');
+  container.innerHTML = '';
+
+  if (!data.aiAnalysis || data.aiAnalysis.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ AI found no obvious semantic issues.</div>';
+    return;
+  }
+
+  const section = document.createElement('div');
+  section.innerHTML = `<h4>🤖 Semantic Analysis</h4>`;
+
+  data.aiAnalysis.forEach((d, idx) => {
+    const div = document.createElement('div');
+    div.className = 'suggestion-item';
+    div.style.borderLeft = '4px solid #9c27b0';
+
+    let actionBtn = '';
+    if (d.action) {
+      const actionJson = JSON.stringify(d.action).replace(/"/g, '&quot;');
+      actionBtn = `<button class="success small-btn" onclick="applyAIAction(this, ${actionJson})">Fix: ${d.action.type}</button>`;
+    }
+
+    div.innerHTML = `
+       <div class="suggestion-details">
+         <strong>${d.issue}</strong>
+         <div style="margin-top:5px; font-size:0.9em;">
+           Severity: <span style="font-weight:bold; color:${d.severity === 'High' ? 'red' : 'inherit'}">${d.severity || 'Info'}</span>
+           <br>Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}
+         </div>
+         <div style="margin-top:8px;">${actionBtn}</div>
+       </div>
+     `;
+    section.appendChild(div);
+  });
+  container.appendChild(section);
+}
+
+// --- ACTIONS ---
+window.applyRemoveKeyword = function (folderPath, keyword, allFolders = false) {
+  if (!confirm(`Remove keyword "${keyword}"?`)) return;
+
+  let changes = 0;
+  const targetFolders = allFolders ? configTree.map(r => r.folder) : [folderPath];
+
+  configTree.forEach(node => {
+    if (targetFolders.includes(node.folder) && node.config.keywords) {
+      const idx = node.config.keywords.indexOf(keyword);
+      if (idx !== -1) {
+        node.config.keywords.splice(idx, 1);
+        changes++;
+      }
+    }
+  });
+
+  if (changes > 0) {
+    setDirty(true);
+    // Refresh analysis? Or just remove UI element?
+    // Simple: Close modal and refresh tree
+    document.getElementById('conflictModal').classList.remove('active');
+    renderTree();
+    showStatus(document.getElementById('mainStatus'), `Removed "${keyword}" from ${changes} folders`, 'green');
+  }
+};
+
+window.applyAIAction = function (btn, action) {
+  if (!confirm(`Apply fix: ${action.type}?`)) return;
+
+  // Implement Merge / Delete / Rename
+  if (action.type === 'delete_keyword') {
+    window.applyRemoveKeyword(action.folder, action.keyword);
+  } else if (action.type === 'merge') {
+    // Source -> Target
+    // 1. Move keywords/regex from Source to Target
+    // 2. Delete Source
+    const sourceNode = configTree.find(r => r.folder === action.source);
+    const targetNode = configTree.find(r => r.folder === action.target);
+
+    if (sourceNode && targetNode) {
+      if (sourceNode.config.keywords) {
+        targetNode.config.keywords = [...new Set([...(targetNode.config.keywords || []), ...sourceNode.config.keywords])];
+      }
+      if (sourceNode.config.regex) {
+        targetNode.config.regex = [...new Set([...(targetNode.config.regex || []), ...sourceNode.config.regex])];
+      }
+      // Delete Source
+      const idx = configTree.indexOf(sourceNode);
+      if (idx !== -1) configTree.splice(idx, 1);
+
+      setDirty(true);
+      document.getElementById('conflictModal').classList.remove('active');
+      renderTree();
+      showStatus(document.getElementById('mainStatus'), `Merged ${action.source} into ${action.target}`, 'green');
+    } else {
+      alert("Could not find source or target folders.");
+    }
+  }
+  // Disable button
+  btn.disabled = true;
+  btn.textContent = "Applied";
+};
+
 // Attach Listeners
 document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('conflictAnalysisBtn');
-  if (btn) btn.addEventListener('click', startConflictAnalysis);
+  const staticBtn = document.getElementById('staticAnalysisBtn');
+  if (staticBtn) staticBtn.addEventListener('click', startStaticAnalysis);
+
+  const semanticBtn = document.getElementById('semanticAnalysisBtn');
+  if (semanticBtn) semanticBtn.addEventListener('click', startSemanticAnalysis);
 
   const closeBtn = document.getElementById('closeConflictBtn');
   if (closeBtn) closeBtn.addEventListener('click', () => {
     document.getElementById('conflictModal').classList.remove('active');
   });
+
+  // Old Smart Suggest
+  const suggestBtn = document.getElementById('smartSuggestBtn');
+  if (suggestBtn) suggestBtn.addEventListener('click', startSmartSuggest);
+  // ... other existing listeners
 });

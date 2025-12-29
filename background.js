@@ -704,13 +704,12 @@ browser.runtime.onMessage.addListener(async (message) => {
     }
   }
 
-  // --- NEW: Collision Analysis ---
-  else if (message.action === "analyze-config-collisions") {
+  // --- NEW: Static Conflict Analysis ---
+  else if (message.action === "analyze-static-conflicts") {
     const { config } = message;
     const result = {
       duplicates: [],
-      substrings: [],
-      aiAnalysis: null
+      substrings: []
     };
 
     // 1. Static Analysis
@@ -739,9 +738,11 @@ browser.runtime.onMessage.addListener(async (message) => {
         if (i === j) continue;
         const k1 = keywords[i];
         const k2 = keywords[j];
-        if (k2.includes(k1)) {
+        if (k2.includes(k1)) { // k1 is substring of k2
           const f1 = keywordMap.get(k1);
           const f2 = keywordMap.get(k2);
+          // Only report if they point to DIFFERENT folders
+          // If "web" (k1) and "website" (k2) are both in "Sales", it's redundancy but not a conflict.
           const distinctFolders = f1.some(f => !f2.includes(f));
           if (distinctFolders) {
             result.substrings.push({ short: k1, long: k2, foldersShort: f1, foldersLong: f2 });
@@ -749,8 +750,12 @@ browser.runtime.onMessage.addListener(async (message) => {
         }
       }
     }
+    return result;
+  }
 
-    // 2. AI Semantic Analysis
+  // --- NEW: Semantic (AI) Analysis ---
+  else if (message.action === "analyze-semantic-conflicts") {
+    const { config } = message;
     try {
       let aiConfig, geminiApiKey;
       try {
@@ -763,40 +768,59 @@ browser.runtime.onMessage.addListener(async (message) => {
         aiConfig = local.aiConfig;
         geminiApiKey = local.geminiApiKey;
       }
-
       const provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
 
-      if (provider) {
-        const structure = config.map(c => `Folder: "${c.folder}" (Keywords: ${c.config.keywords?.join(', ') || ''})`).join('\n');
-        const prompt = `
-                Analyze this folder structure for Semantic Conflicts.
-                Configuration:
-                ${structure}
-                
-                Output JSON:
-                {
-                    "semanticIssues": [
-                        { "issue": "Description", "severity": "High|Medium", "affectedFolders": ["f1"] }
-                    ]
-                }
-             `;
+      if (!provider) return { error: "AI not configured" };
 
-        const promptData = { prompt, provider, aiConfig, geminiApiKey };
-        const aiJson = await fetchAI(promptData);
-        if (aiJson && aiJson.semanticIssues) {
-          result.aiAnalysis = aiJson.semanticIssues;
-        }
-      }
-    } catch (e) { console.error("Collision AI Error", e); }
+      const structure = config.map(c => `Folder: "${c.folder}" (Keywords: ${c.config.keywords?.join(', ') || ''})`).join('\n');
+      const prompt = `
+            Analyze this folder structure for Semantic Conflicts and Redundancy.
+            Configuration:
+            ${structure}
+            
+            Identify issues where folders seem to compete for the same content or are redundantly named.
+            Provide an ACTIONABLE fix for each.
+            
+            Output strictly JSON:
+            {
+                "issues": [
+                    { 
+                        "issue": "Description of the problem", 
+                        "severity": "High|Medium", 
+                        "affectedFolders": ["A", "B"], 
+                        "action": {
+                            "type": "merge",
+                            "source": "A",
+                            "target": "B"
+                        }
+                    },
+                    {
+                        "issue": "Keyword is too broad",
+                        "severity": "Medium",
+                        "affectedFolders": ["C"],
+                        "action": {
+                            "type": "delete_keyword",
+                            "folder": "C",
+                            "keyword": "the"
+                        }
+                    }
+                ]
+            }
+         `;
 
-    return result;
+      const promptData = { prompt, provider, aiConfig, geminiApiKey };
+      const aiJson = await fetchAI(promptData);
+      return { aiAnalysis: aiJson ? (aiJson.issues || []) : [] };
+
+    } catch (e) {
+      console.error("Semantic AI Error", e);
+      return { error: e.message };
+    }
   }
 });
 
 async function runTask(taskFn) {
   isScanning = true;
-  scanProgress = { current: 0, total: 0, detail: "Starting..." };
-  broadcastState();
   try { await taskFn(); } catch (e) { console.error("Task failed:", e); }
   finally { isScanning = false; broadcastState(); }
 }
