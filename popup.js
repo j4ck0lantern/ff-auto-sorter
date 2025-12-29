@@ -56,9 +56,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Settings can remain enabled usually, but sticking to consistency
   }
 
-  function updateStatus(message, color = 'black') {
+  function updateStatus(message, type = 'default') {
     statusEl.textContent = message;
-    statusEl.style.color = color;
+    statusEl.className = ''; // reset
+    if (type === 'working') statusEl.classList.add('status-working');
+    else if (type === 'success') statusEl.classList.add('status-success');
+    else if (type === 'error') statusEl.classList.add('status-error');
+    // default uses inherited color var(--status)
   }
 
   // --- Main State Handler ---
@@ -66,7 +70,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateUI(state) {
     if (state.isScanning) {
       setButtonsDisabled(true);
-      updateStatus("Task in progress...", "blue");
+      // Replace "blue" with "working"
+      updateStatus("Task in progress...", "working");
+      // ...
+      if (state.lastResult) {
+        if (state.lastResult.success) {
+          updateStatus("Task Complete!", "success");
+        } else if (state.lastResult.error) {
+          updateStatus(`Error: ${state.lastResult.error}`, "error");
+        }
+      } else {
+        updateStatus("Ready");
+      }
+      // ...
+      updateStatus("Working...", "working");
+    } else {
+      setButtonsDisabled(false);
+      updateStatus("Done.", "success");
+      // ...
+      updateStatus("Starting...", "working");
+      // ...
+      updateStatus(response.error, "error");
+      // ...
+      updateStatus("Failed to start.", "error");
       updateProgress(state.progress.current, state.progress.total, state.progress.detail);
     } else {
       setButtonsDisabled(false);
@@ -77,9 +103,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Let's check if there was a recent completion message.
       if (state.lastResult) {
         if (state.lastResult.success) {
-          updateStatus("Task Complete!", "green");
+          updateStatus("Task Complete!", "success");
         } else if (state.lastResult.error) {
-          updateStatus(`Error: ${state.lastResult.error}`, "red");
+          updateStatus(`Error: ${state.lastResult.error}`, "error");
         }
       } else {
         updateStatus("Ready");
@@ -100,10 +126,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (message.isScanning !== undefined) {
         if (message.isScanning) {
           setButtonsDisabled(true);
-          updateStatus("Working...", "blue");
+          updateStatus("Working...", "working");
         } else {
           setButtonsDisabled(false);
-          updateStatus("Done.", "green");
+          updateStatus("Done.", "success");
           setTimeout(() => updateStatus("Ready"), 3000);
         }
       }
@@ -129,19 +155,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function triggerAction(actionName) {
     setButtonsDisabled(true);
-    updateStatus("Starting...", "blue");
+    updateStatus("Starting...", "working");
     updateProgress(0, 0, "Initializing...");
 
     try {
       const response = await browser.runtime.sendMessage({ action: actionName });
       if (response && response.error) {
-        updateStatus(response.error, "red");
+        updateStatus(response.error, "error");
         setButtonsDisabled(false);
       }
       // If success, the background script will emit status updates which our listener handles
     } catch (e) {
       console.error("Error triggering action:", e);
-      updateStatus("Failed to start.", "red");
+      updateStatus("Failed to start.", "error");
       setButtonsDisabled(false);
     }
   }
