@@ -550,21 +550,25 @@
 
   <!-- MAIN: FOLDER TREE -->
   <div id="main">
-    <h2>Folder Rules</h2>
-    <div id="toolbar">
-      <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
-      <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart
-        Suggest</button>
-      <button id="staticAnalysisBtn" style="background: #ff9800; color: white;">⚠️ Syntax Check</button>
-      <button id="semanticAnalysisBtn" style="background: #9c27b0; color: white;">🤖 Semantics (AI)</button>
-      <span style="flex: 1;"></span>
-      <button id="saveMainsBtn">Save All Changes</button>
-    </div>
+    <div class="card card-backup"
+      style="height: calc(100vh - 40px); display: flex; flex-direction: column; margin-bottom: 0;">
+      <h2 style="margin-top:0;">Folder Rules</h2>
+      <div id="toolbar">
+        <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
+        <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart
+          Suggest</button>
+        <button id="staticAnalysisBtn" style="background: #ff9800; color: white;">⚠️ Syntax Check</button>
+        <button id="semanticAnalysisBtn" style="background: #9c27b0; color: white;">🤖 Semantics (AI)</button>
+        <span style="flex: 1;"></span>
+        <button id="saveMainsBtn">Save All Changes</button>
+      </div>
 
-    <div id="tree-container">
-      <!-- Tree rendered here -->
+      <div id="tree-container"
+        style="flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 10px;">
+        <!-- Tree rendered here -->
+      </div>
+      <div id="mainStatus" style="margin-top: 5px;"></div>
     </div>
-    <div id="mainStatus" style="margin-top: 5px;"></div>
   </div>
 
   <!-- EDIT FOLDER MODAL -->
