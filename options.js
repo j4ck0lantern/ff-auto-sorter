@@ -221,11 +221,29 @@ function parseConfigToTree() {
     });
   });
 
+  // Sort children by index (if available) to ensure UI matches backend
+  const sortNodes = (n) => {
+    n.children.sort((a, b) => {
+      const idxA = a.rule && a.rule.index !== undefined ? a.rule.index : 999;
+      const idxB = b.rule && b.rule.index !== undefined ? b.rule.index : 999;
+      return idxA - idxB;
+    });
+    n.children.forEach(sortNodes);
+  };
+  sortNodes(root);
+
   return root;
 }
 
 // Regenerate the flat config array from the tree structure (DFS)
+// AND UPDATE INDICES based on visual order
 function rebuildConfigFromTree(node, list = []) {
+  // If this node has a rule, update its index based on its position in parent
+  if (node.rule && node.parent) {
+    const myIndex = node.parent.children.indexOf(node);
+    node.rule.index = myIndex;
+  }
+
   if (node.rule) {
     list.push(node.rule);
   }
@@ -514,6 +532,9 @@ function setupDatabaseListeners() {
 
   // Backup
   document.getElementById('backupDbBtn').addEventListener('click', async () => {
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Backup?";
+    if (!confirm(msg)) return;
+
     const { bookmarkTags } = await browser.storage.local.get('bookmarkTags');
     const blob = new Blob([JSON.stringify(bookmarkTags || {}, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -526,7 +547,10 @@ function setupDatabaseListeners() {
 
   // Restore
   document.getElementById('restoreDbBtn').addEventListener('click', () => {
-    document.getElementById('restoreDbFile').click();
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Restore?";
+    if (confirm(msg)) {
+      document.getElementById('restoreDbFile').click();
+    }
   });
 
   document.getElementById('restoreDbFile').addEventListener('change', (e) => {
@@ -639,12 +663,44 @@ function handleDrop(e, targetNode) {
   } else {
     // RE-ORDER
     // We need to find where the target rule is in the array.
-    // The targetNode might represent a rule, or a container.
 
-    // If targetNode has a rule, we use its index.
-    // If targetNode is a container (no rule), we need to find the index of its first child rule?
-    // Simpler: Find index of targetNode.rule. If null, find first child rule.
+    // 1. Determine New Parent Path
+    // If dropping Top/Bottom of a node, we become a sibling of that node.
+    // So our new parent is targetNode.parent.
+    const newParentPath = targetNode.parent ? targetNode.parent.fullPath : "";
+    const oldParentPath = draggedNode.parent ? draggedNode.parent.fullPath : "";
 
+    // 2. Rename if Parent Changed
+    if (newParentPath !== oldParentPath) {
+      // console.log(`Re-parenting from ${oldParentPath} to ${newParentPath}`);
+      draggedRules.forEach(rule => {
+        // Logic: newPrefix + suffix
+        // Current Path: draggedNode.fullPath (e.g. A/B/C)
+        // Suffix: /C (or just C if it was A/B/C) -> relative to Old Parent A/B
+
+        // Wait, draggedRules includes children (A/B/C/D).
+        // We need to replace limits.
+
+        // Path relative to the dragged node's folder name?
+        // draggedNode.fullPath = A/B/C.
+        // rule.folder = A/B/C/D.
+        // Suffix = /D. 
+
+        // New base: newParentPath + '/' + draggedNode.name (e.g. X/C).
+        const prefix = newParentPath ? (newParentPath + '/') : "";
+
+        // If the rule IS the dragged node itself
+        if (rule.folder === draggedNode.fullPath) {
+          rule.folder = prefix + draggedNode.name;
+        } else if (rule.folder.startsWith(draggedNode.fullPath + '/')) {
+          // It's a child
+          const suffix = rule.folder.substring(draggedNode.fullPath.length);
+          rule.folder = prefix + draggedNode.name + suffix;
+        }
+      });
+    }
+
+    // 3. Find Insertion Point
     // Let's get "Target Block" roughly.
     let targetIndex = -1;
     if (targetNode.rule) {
@@ -656,44 +712,17 @@ function handleDrop(e, targetNode) {
 
     if (targetIndex === -1) targetIndex = configTree.length; // End
 
-    // If bottom, we insert AFTER the target block?
-    // Actually, just inserting at targetIndex (Top) or targetIndex + 1 (Bottom) logic
-    // But "Bottom" of a folder might mean after all its children?
-    // UI Visual: "Below" X means immediately after X.
-
     if (isBottom) targetIndex++;
 
     // Insert draggedRules at targetIndex
     configTree.splice(targetIndex, 0, ...draggedRules);
-
-    // Note: For Re-ordering, we generally DON'T change paths.
-    // BUT if we cross hierarchy levels visually (e.g. drop root node into child list),
-    // the visual tree expects paths to match hierarchy.
-    // If we drop a top-level folder "Gaming" in between "Work/A" and "Work/B",
-    // The visual tree would show it as a sibling of A and B, implying it is "Work/Gaming".
-    // HOWEVER, our tree builder relies on PATH strings. 
-    // So simply reordering array doesn't change hierarchy in the Tree View if paths are absolute.
-    // This is a disconnect.
-
-    // FIX: Reordering via Drag should ONLY be for priority (same depth) OR we must update paths if depth changes??
-    // The User Request: "dragging folders ... to re-organize them".
-    // Implies nesting AND ordering.
-    // If I drop "Gaming" (Root) between "Work/A" and "Work/B".
-    // Does it become "Work/Gaming"? Or just sit there in priority list?
-    // Visual Tree logic: "Gaming" will still render at Root level because string is "Gaming".
-    // It won't appear inside "Work".
-
-    // CONCLUSION: "Below" on the UI implies visual sibling.
-    // If I drop "Gaming" onto "Work", it becomes "Work/Gaming" (Inside logic).
-    // If I drop "Gaming" below "Work", it stays "Gaming" and just moves execution order.
-    // This matches standard behavior. Visual tree might look odd if priority mixes depths deeply, 
-    // but renderTree() sorts hierarchy by PATH, not Array Index (except for order of siblings).
-    // So: Reordering array only affects execution order (and sibling order). It does NOT change parent unless 'Inside' used.
   }
 
   setDirty(true);
   renderTree();
 }
+
+
 
 function getRulesForSubtree(node) {
   let rules = [];
@@ -784,6 +813,22 @@ function setupModalListeners() {
       });
     }
 
+    // Validation: Check for Duplicate Leaf Names (Case-Insensitive)
+    // We want to avoid "Misc" and "Home/Misc" existing simultaneously
+    const newLeaf = folderPath.split('/').pop().trim().toLowerCase();
+    const duplicate = configTree.find(r => {
+      // Skip if it's the rule we are currently editing (same FULL path)
+      if (originalFullPath && r.folder === originalFullPath) return false;
+
+      const rLeaf = r.folder.split('/').pop().trim().toLowerCase();
+      return rLeaf === newLeaf;
+    });
+
+    if (duplicate) {
+      alert(`Duplicate Folder Name Detected!\n\nFolder "${newLeaf}" is already used by:\n"${duplicate.folder}"\n\nPlease use unique names for all folders to ensure reliable sorting.`);
+      return;
+    }
+
     const newRule = {
       folder: folderPath,
       index: index,
@@ -797,6 +842,7 @@ function setupModalListeners() {
     };
 
     // If editing existing, remove old one first (or update in place, but paths might change)
+    // If editing existing, remove old one first (or update in place, but paths might change)
     if (originalFullPath) {
       if (originalFullPath !== folderPath) {
         // RECURSIVE RENAME
@@ -807,10 +853,17 @@ function setupModalListeners() {
             r.folder = folderPath + r.folder.substring(originalFullPath.length);
           }
         });
+
+        // Safety: Ensure we didn't just rename 'A' to 'A/B' in a way that creates circularity or weirdness?
+        // Seems ok.
       }
 
       const existingIdx = configTree.findIndex(r => r.folder === originalFullPath);
       if (existingIdx > -1) configTree.splice(existingIdx, 1);
+    } else {
+      // Validation for New Folder: 
+      // Ensure it doesn't conflict with existing container in a way that breaks tree?
+      // e.g. if I have 'A/B', and I add rule 'A'. perfectly valid.
     }
 
     // Add new

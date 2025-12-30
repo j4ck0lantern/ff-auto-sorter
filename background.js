@@ -158,18 +158,31 @@ async function deduplicateBookmarks(bookmarks) {
 function getNormalizedUrl(url) {
   try {
     const urlObj = new URL(url);
-    // Explicitly kill the hash for the Key, so #section links share tags with main page?
-    // User preference usually: Tag the *Resource*.
-    // Let's strip hash completely for the DB Key to be robust.
     urlObj.hash = '';
-
-    // Strip trailing slash
     if (urlObj.pathname.endsWith('/') && urlObj.pathname.length > 1) {
       urlObj.pathname = urlObj.pathname.slice(0, -1);
     }
     return urlObj.toString();
   } catch (e) {
     return url;
+  }
+}
+
+/* --- HELPER: Get System Root IDs Dynamically --- */
+async function getSystemRootIds() {
+  try {
+    const tree = await browser.bookmarks.getTree();
+    const root = tree[0];
+    const ids = [root.id]; // root________
+    if (root.children) {
+      root.children.forEach(c => ids.push(c.id));
+    }
+    // Expected: ['root________', 'menu________', 'toolbar_____', 'unfiled_____', 'mobile________']
+    // But IDs might vary.
+    return ids;
+  } catch (e) {
+    console.warn("Failed to get system roots", e);
+    return ['root________', 'toolbar_____', 'menu________', 'unfiled_____', 'mobile________', 'mobile______'];
   }
 }
 
@@ -197,6 +210,20 @@ async function getAllBookmarks(node) {
     }
   }
   return bookmarks;
+}
+
+// Helper: Get All Folders (Recursive)
+async function getAllFolders(node) {
+  let folders = [];
+  if (!node.url && node.id !== 'root________') { // valid folders only
+    folders.push(node);
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      folders = folders.concat(await getAllFolders(child));
+    }
+  }
+  return folders;
 }
 
 /* --- Helper: Delay --- */
@@ -274,13 +301,43 @@ async function organizeBookmark(bookmark) {
   //   bookmark.url = cleanUrl; // Update local ref
   // }
 
+  /* 
+   * SMART AI TAG CHECK
+   */
   const dbTags = await TagDB.getTags(getNormalizedUrl(bookmark.url));
-  if (dbTags.aiFolder) return; // Already AI categorized in DB
+  if (dbTags.aiFolder) {
+    // Check if this folder rule still exists
+    const isRuleActive = sorterConfig.some(rule => {
+      const ruleLower = rule.folder.trim().toLowerCase();
+      const tagLower = dbTags.aiFolder.trim().toLowerCase();
+      // Relaxed Check: 
+      // 1. Exact Match
+      if (ruleLower === tagLower) return true;
+      // 2. Rule ends with Tag (Taxonomy shift: "Job Hunting" -> "My Life/Job Hunting")
+      if (ruleLower.endsWith("/" + tagLower)) return true;
+      // 3. Tag ends with Rule (Reverse shift)
+      if (tagLower.endsWith("/" + ruleLower)) return true;
+      return false;
+    });
+
+    if (isRuleActive) {
+      // Rule exists -> Trust the AI tag -> Skip processing (Leave it alone)
+      return;
+    } else {
+      console.log(`[Organize] AI Tag '${dbTags.aiFolder}' invalid/inactive. Re-evaluating '${bookmark.title}'.`);
+      // Fall through to standard matching (Regex/Keywords/Ancestry)
+    }
+  }
 
   // Ignore Folders/Separators
   if (!bookmark.url) return;
 
   const searchableText = (bookmark.title + " " + bookmark.url).toLowerCase();
+
+  if (searchableText.includes("cts control pots") || searchableText.includes("active noise")) {
+    console.log(`[DEBUG Org] Processing Specimen: '${bookmark.title}' (Previously skipped?)`);
+  }
+
   let matchedRule = null;
 
   for (const item of sorterConfig) {
@@ -288,56 +345,155 @@ async function organizeBookmark(bookmark) {
     if (!config) continue;
     if (config.ignore) continue; // Skip ignored folders
 
-    if (config.keywords && config.keywords.some(k => searchableText.includes(k.toLowerCase()))) {
-      matchedRule = item;
-      break;
-    }
     if (config.regex) {
-      for (const r of config.regex) {
+      for (const rx of config.regex) {
         try {
-          if (new RegExp(r.pattern, 'i').test(searchableText)) {
+          if (new RegExp(rx.pattern, 'i').test(searchableText)) {
             matchedRule = item;
             break;
           }
         } catch (e) { }
       }
     }
+    if (matchedRule) break;
+
+    if (config.keywords) {
+      for (const kw of config.keywords) {
+        if (searchableText.includes(kw.toLowerCase())) {
+          matchedRule = item;
+          break;
+        }
+      }
+    }
+    if (matchedRule) break;
   }
 
   if (matchedRule) {
+    console.log(`Matched '${bookmark.title}' to '${matchedRule.folder}'`);
     await moveBookmarkToFolder(bookmark, matchedRule.folder, matchedRule.index);
-    await TagDB.setTags(getNormalizedUrl(bookmark.url), { keywordFolder: matchedRule.folder }, bookmark.id);
-  } else {
+    return; // Done
+  }
+
+  // --- DEFAULT FOLDER LOGIC ---
+  // --- DEFAULT FOLDER LOGIC ---
+  if (!matchedRule) {
     // Check for Default Folder
-    const defaultRule = sorterConfig.find(r => r.config && r.config.default);
+    let defaultRule = sorterConfig.find(r => r.config && r.config.default);
+
+    // FALLBACK: If no default is SET, assume "Miscellaneous"
+    if (!defaultRule) {
+      console.log(`[DEBUG Org] No Default Rule configured. Using Implicit Default: 'Miscellaneous'.`);
+      defaultRule = {
+        folder: "Miscellaneous",
+        index: [999], // End
+        config: { default: true }
+      };
+    }
+
     if (defaultRule) {
-      // Avoid moving if it's already in the default folder?
-      // Or if it is in "Unfiled" (id: unfiled_____) or "Menu" or "Toolbar" root.
-      // Actually, standard behavior for "Default" is "If no other match, go here".
-      // But we must be careful not to move things OUT of the default folder into the default folder repeatedly?
-      // moveBookmarkToFolder handles "if parentId !== targetFolderId".
-      // So it's safe to call.
+      // "Parent" is the folder holding the bookmark.
+      const parentArr = await browser.bookmarks.get(bookmark.parentId);
+      const parent = parentArr[0];
+      const sysRoots = await getSystemRootIds();
 
-      // But we should probably check if it's 'Unprocessed'. 
-      // If a user manually put it in "Archive", and we move it to "Default" because no keywords match... that's bad.
-      // Usually "Default" implies "Inbox".
-      // Let's protect existing folders? 
-      // But the request says "flag a folder as 'default' for unsorted bookmarks".
-      // The `onCreated` event only fires for NEW bookmarks. So safe there.
-      // The `organize-all` scans EVERYTHING.
+      console.log(`[Organize] Checking default for '${bookmark.title}' (Parent: '${parent.title}' | ID: ${parent.id})`);
 
-      // Safety Check: Only apply Default Catch-all if the bookmark is in a system root (Unsorted).
-      // If it's already in a user folder, leave it alone.
-      const systemRoots = ['unfiled_____', 'menu________', 'toolbar_____'];
-      if (!systemRoots.includes(bookmark.parentId)) {
-        return;
+      if (!sysRoots.includes(parent.id)) {
+        // STRICT PATH ENFORCEMENT
+        // 1. Build the full path of the current parent (e.g., "Programming/Web/React")
+        let pathParts = [parent.title];
+        let current = parent;
+        let isValidHierarchy = true;
+
+        // Safety depth cap
+        for (let i = 0; i < 8; i++) { // Max depth 8 safety
+          if (sysRoots.includes(current.parentId)) break; // Reached Root's child (Top Level)
+
+          const ups = await browser.bookmarks.get(current.parentId);
+          if (!ups || !ups[0]) {
+            isValidHierarchy = false; // Orphaned?
+            break;
+          }
+          current = ups[0];
+          pathParts.unshift(current.title); // Prepend parent name
+        }
+
+        if (isValidHierarchy) {
+          const bookmarkParamsPath = pathParts.join('/');
+          const fullPathLower = bookmarkParamsPath.toLowerCase();
+
+          // DEBUG LOG:
+          if (fullPathLower.includes("entertainment") || fullPathLower.includes("jerbs")) {
+            console.log(`[DEBUG Org] Strict Check for bookmark '${bookmark.title}'. Path: '${bookmarkParamsPath}'`);
+          }
+
+          // 2. Build Set of Valid Configured Paths (and their ancestors)
+          const validPaths = new Set();
+          const validRoots = []; // Array for prefix checking
+
+          sorterConfig.forEach(rule => {
+            if (rule.folder) {
+              const lower = rule.folder.trim().toLowerCase();
+              validPaths.add(lower);
+              validRoots.push(lower);
+            }
+            // Ancestors are valid too (e.g., "Programming" is valid if "Programming/Web" exists)
+            const parts = rule.folder.split('/');
+            let acc = "";
+            parts.forEach(p => {
+              acc = acc ? `${acc}/${p}` : p;
+              const lowerAncest = acc.toLowerCase();
+              validPaths.add(lowerAncest);
+              validRoots.push(lowerAncest);
+            });
+          });
+
+          // 3. Strict Check with Subfolder Support
+          // Logic: Valid if Exact Match OR if it is a child of a Valid Path
+          let isProtected = false;
+
+          if (validPaths.has(fullPathLower)) {
+            isProtected = true;
+          } else {
+            // Prefix Check: "Interests/Carpentry" starts with "interests/" ?
+            isProtected = validRoots.some(root => fullPathLower.startsWith(root + '/'));
+          }
+
+          if (isProtected) {
+            console.log(`[Organize] Valid: '${bookmarkParamsPath}' (Configured/Child).`);
+            return; // Allowed to stay
+          } else {
+            console.log(`[Organize] Stray: '${bookmarkParamsPath}' -> Default.`);
+            // Fall through to move
+          }
+        } else {
+          console.log(`[Organize] Hierarchy broken for '${parent.title}'. Moving to Default.`);
+        }
       }
 
+      console.log(`[Organize] applying Default Rule. Moving '${bookmark.title}' to '${defaultRule.folder}'`);
       await moveBookmarkToFolder(bookmark, defaultRule.folder, defaultRule.index);
-      // We don't tag it as "AI Matched" or "Keyword Matched", so next time it might be re-evaluated.
-      // That's fine.
+    } else {
+      console.log(`[Organize] No Default Rule found. Skipping '${bookmark.title}'.`);
     }
   }
+}
+
+// HELPER: Broadcast Progress
+let lastBroadcast = 0;
+function updateProgress(current, total) {
+  if (Date.now() - lastBroadcast < 100 && current < total) return;
+  lastBroadcast = Date.now();
+
+  // Calculate percentage
+  if (total === 0) total = 1;
+  scanProgress = {
+    current: current,
+    total: total,
+    percentage: Math.round((current / total) * 100)
+  };
+
+  broadcastState();
 }
 
 async function moveBookmarkToFolder(bookmark, folderPath, indexRule) {
@@ -553,6 +709,7 @@ async function handleSortSelectedTabs() {
 /* --- Message Listener --- */
 browser.runtime.onMessage.addListener(async (message) => {
   if (message.action === "get-scan-status") {
+    // console.log("Background: Received get-scan-status"); 
     return { isScanning, progress: scanProgress };
   }
 
@@ -573,13 +730,28 @@ browser.runtime.onMessage.addListener(async (message) => {
       scanProgress.total = bookmarks.length;
       broadcastState();
 
+      // 2. Organize Bookmarks
       for (const b of bookmarks) {
         scanProgress.current++;
         scanProgress.detail = b.title || b.url; // Fallback
         broadcastState();
-        await delay(100); // Yield 100ms for clear visibility (User Request)
+        // await delay(10); // Faster processing
         await organizeBookmark(b);
       }
+
+      // 3. Consolidate Folders
+      scanProgress.detail = "Consolidating folders...";
+      broadcastState();
+      await consolidateFolders();
+
+      // 4. Enforce Structure (Create Missing & Sort)
+      scanProgress.detail = "Enforcing folder order...";
+      broadcastState();
+      await enforceFolderStructure();
+
+      // 5. Prune Empty Folders (safe)
+      scanProgress.detail = "Cleaning empty folders...";
+      broadcastState();
       await pruneEmptyFolders();
     });
   }
@@ -670,6 +842,7 @@ browser.runtime.onMessage.addListener(async (message) => {
       const tree = await browser.bookmarks.getTree();
       const bookmarks = await getAllBookmarks(tree[0]);
       scanProgress.total = bookmarks.length;
+      scanProgress.current = 0; // Fix: Reset progress
       broadcastState();
 
       for (const b of bookmarks) {
@@ -912,21 +1085,202 @@ async function findOrCreateFolderPath(path, baseParentId, ruleIndex) {
 
 async function findOrCreateSingleFolder(folderName, parentId, desiredIndex) {
   const children = await browser.bookmarks.getChildren(parentId);
+
+  // Find case-insensitive match
   const existingFolder = children.find(child => !child.url && child.title.toLowerCase() === folderName.toLowerCase());
 
   if (existingFolder) {
-    if (existingFolder.index !== desiredIndex) {
-      try { await browser.bookmarks.move(existingFolder.id, { index: desiredIndex }); } catch (e) { }
+    // 1. Fix Casing if mismatched (e.g. "web" -> "Web")
+    if (existingFolder.title !== folderName) {
+      try { await browser.bookmarks.update(existingFolder.id, { title: folderName }); } catch (e) { }
+    }
+
+    // 2. Fix Index if mismatched
+    // Note: 'desiredIndex' is absolute. browser.bookmarks.move uses index relative to new parent.
+    // If parent is same, it moves within list.
+    if (desiredIndex !== undefined && existingFolder.index !== desiredIndex) {
+      try {
+        // Check if index is valid for current child count?
+        // If we want it at 0, just move to 0.
+        // If we want it at 1, but there is only 1 item (itself), it stays at 0.
+        // We should trust the rule. 
+        await browser.bookmarks.move(existingFolder.id, { index: desiredIndex });
+      } catch (e) {
+        // Often fails if index is out of bounds (e.g. index 5 but only 2 items).
+        // Fallback: Move to end? No, just ignore.
+      }
     }
     return existingFolder.id;
   }
 
-  const newFolder = await browser.bookmarks.create({
+  // 3. Create New
+  const createProps = {
     parentId: parentId,
-    title: folderName,
-    index: desiredIndex
+    title: folderName
+  };
+  if (desiredIndex !== undefined) createProps.index = desiredIndex;
+
+  try {
+    const newFolder = await browser.bookmarks.create(createProps);
+    return newFolder.id;
+  } catch (e) {
+    // Retry without index if it failed (maybe index out of bounds)
+    delete createProps.index;
+    const fallback = await browser.bookmarks.create(createProps);
+    return fallback.id;
+  }
+}
+
+/* --- HELPER: Consolidate Folders (Global Smart Merge) --- */
+async function consolidateFolders() {
+  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  if (!sorterConfig) return;
+
+  console.log("Consolidating folders (Smart Merge)...");
+
+  // 1. Map Leaf Names to Rules to detect uniqueness
+  // Leaf "Web" -> count 2 (Programming/Web, Design/Web) -> Skip
+  // Leaf "Miscellaneous" -> count 1 -> Safe to merge all "Miscellaneous" into this one
+  const leafCounts = {};
+  sorterConfig.forEach(rule => {
+    const parts = rule.folder.split('/');
+    const leaf = parts[parts.length - 1];
+    if (!leafCounts[leaf]) leafCounts[leaf] = [];
+    leafCounts[leaf].push(rule);
   });
-  return newFolder.id;
+
+  // 2. Get All Current Folders in Browser
+  const tree = await browser.bookmarks.getTree();
+  const allFolders = await getAllFolders(tree[0]);
+
+  // 3. Process Unique Rules
+  for (const [leafName, rules] of Object.entries(leafCounts)) {
+    if (rules.length !== 1) continue; // Ambiguous, skip
+
+    const rule = rules[0];
+    const targetPath = rule.folder;
+
+    // Resolve Canonical ID (Target)
+    const toolbarId = "toolbar_____";
+    // We assume this already exists or we create it now to be the target
+    const targetId = await findOrCreateFolderPath(targetPath, toolbarId);
+
+    // Find strays (Same Name, Different ID)
+    const strays = allFolders.filter(f =>
+      f.title.toLowerCase() === leafName.toLowerCase() &&
+      f.id !== targetId &&
+      f.id !== "root________" &&
+      f.id !== "menu________" &&
+      f.id !== "toolbar_____" &&
+      f.id !== "unfiled_____" &&
+      f.id !== "mobile________"
+    );
+
+    for (const stray of strays) {
+      console.log(`Smart Merge: Merging '${stray.title}' (nested in ${stray.parentId}) into '${targetPath}'`);
+
+      // Move all children
+      const children = await browser.bookmarks.getChildren(stray.id);
+      for (const child of children) {
+        await browser.bookmarks.move(child.id, { parentId: targetId });
+      }
+
+      // Delete empty stray
+      try { await browser.bookmarks.remove(stray.id); } catch (e) { }
+    }
+  }
+}
+
+/* --- HELPER: Enforce Folder Structure (Create & Sort by Config) --- */
+async function enforceFolderStructure() {
+  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  if (!sorterConfig) return;
+
+  console.log("Enforcing folder structure...");
+
+  // 1. Build a Tree from Config to understand hierarchy and desired indices
+  // Node: { name: "Name", index: 0, children: { "SubName": Node } }
+  const configTree = { name: "ROOT", children: {} };
+
+  sorterConfig.forEach(rule => {
+    const parts = rule.folder.split('/').filter(p => p.length > 0);
+    let currentNode = configTree;
+
+    parts.forEach((partName, depth) => {
+      if (!currentNode.children[partName]) {
+        currentNode.children[partName] = {
+          name: partName,
+          // Extract index for this depth from the rule's index array or number
+          // If rule has index: [1, 2], then depth 0 is 1, depth 1 is 2.
+          // If rule has index: 1 (number), assume it applies to the LEAF? Or the root?
+          // Convention: index is likely [rootIdx, childIdx].
+          index: 999, // specific index found later
+          children: {}
+        };
+      }
+      currentNode = currentNode.children[partName];
+
+      // If this is the specific target of the rule (leaf of the rule path), set its explicit index
+      if (depth === parts.length - 1) {
+        let ruleIdx = 999;
+        if (Array.isArray(rule.index)) {
+          ruleIdx = rule.index[depth] ?? 999;
+        } else if (typeof rule.index === 'number') {
+          // If single number provided for "A/B", does it mean A's index or B's?
+          // Usually implies the folder itself.
+          ruleIdx = rule.index;
+        }
+        currentNode.index = ruleIdx;
+      } else {
+        // For intermediate nodes (e.g. "Programming" in "Programming/Web"), 
+        // we might not have an explicit rule for "Programming" itself.
+        // We'll rely on "Programming"'s rule if it exists separately. 
+        // If not, we check if there is a rule defined just for the parent.
+        // If not found, it stays 999 (sorted alphabetically or end).
+        // BUT, if we have "Programming" [0] and "Programming/Web" [0,0], 
+        // the first iteration sets "Programming" to 0. Second sees it exists.
+      }
+    });
+  });
+
+  // Re-traverse to fill in indices for intermediate parents if implied?
+  // Actually, loop above handles it if separate rules exist. 
+  // If "Programming" has no rule but "Programming/Web" exists, "Programming" has index 999.
+
+  // 2. Recursive Enforce & Sort
+  // parentId: ID of folder in browser
+  // treeNode: Node from configTree
+  async function traverseAndEnforce(parentId, treeNode) {
+    const siblings = Object.values(treeNode.children);
+    if (siblings.length === 0) return;
+
+    // Sort siblings by desired index, then name
+    siblings.sort((a, b) => {
+      if (a.index !== b.index) return a.index - b.index;
+      return a.name.localeCompare(b.name);
+    });
+
+    // Apply to Browser
+    for (let i = 0; i < siblings.length; i++) {
+      const sib = siblings[i];
+      // Find or Create
+      // We pass 'i' as desiredIndex? 
+      // NO. If user config says "Home" is 0, "Security" is 1.
+      // Siblings array is now ["Home", "Security", ...].
+      // So we just enforce the order in the list: 0, 1, 2...
+      // This overrides the config's raw number with the *sorted relative position*.
+      // This is usually what users want: "Order these relative to each other".
+
+      // Use existing helper
+      const folderId = await findOrCreateSingleFolder(sib.name, parentId, i);
+
+      // Recursion
+      await traverseAndEnforce(folderId, sib);
+    }
+  }
+
+  // Start at Toolbar (Standard Root)
+  await traverseAndEnforce("toolbar_____", configTree);
 }
 
 /* --- HELPER: Prune Empty Folders --- */
@@ -934,40 +1288,99 @@ async function pruneEmptyFolders() {
   console.log("Starting empty folder pruning...");
 
   const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  // 1. Build Protected Set (Lowercase)
   const protectedPaths = new Set();
   if (sorterConfig) {
     sorterConfig.forEach(rule => {
-      if (rule.folder) protectedPaths.add(rule.folder);
+      // Add Exact Path
+      if (rule.folder) protectedPaths.add(rule.folder.toLowerCase());
+
+      // Add Ancestors ("Programming/Web" -> protects "Programming")
+      const parts = rule.folder.split('/');
+      let acc = "";
+      parts.forEach(p => {
+        acc = acc ? `${acc}/${p}` : p;
+        protectedPaths.add(acc.toLowerCase());
+      });
     });
   }
 
+  // Optimize: Get System IDs ONCE
+  const systemIds = await getSystemRootIds();
+
+  // Recursive Pruner
   async function traverseAndPrune(node, currentPath) {
+    // 1. Process children first (Bottom-Up)
     if (node.children) {
       const children = [...node.children];
       for (const child of children) {
-        if (!child.url) {
+        if (!child.url) { // Folder
           const childPath = currentPath ? `${currentPath}/${child.title}` : child.title;
           await traverseAndPrune(child, childPath);
         }
       }
     }
 
-    if (node.id && node.id !== "root________" && node.id !== "toolbar_____") {
-      const updatedChildren = await browser.bookmarks.getChildren(node.id);
-      if (updatedChildren.length === 0) {
-        if (protectedPaths.has(currentPath)) {
-          // Protected
+    // 2. Check if current node is empty and not protected
+    if (node.id && !systemIds.includes(node.id)) {
+      try {
+        const updatedChildren = await browser.bookmarks.getChildren(node.id);
+
+        // Filter out SEPARATORS (type: separator or missing url/title?)
+        // Actually browser.bookmarks.getChildren returns objects. Separators have type="separator".
+        const realContent = updatedChildren.filter(c => c.type !== "separator" && c.type !== "mode_separator");
+
+        // If content is only separators, we can delete the separators and then the folder?
+        // Or just delete the folder (which deletes separators inside it).
+        // So checking `realContent.length === 0` is sufficient logic to say "This folder contains nothing valuable".
+
+        const fullPathLower = currentPath.toLowerCase();
+
+        if (realContent.length === 0) {
+          // DEBUG LOG for stubborn folders
+          if (fullPathLower.includes("entertainment") || fullPathLower.includes("projects") || fullPathLower.includes("jerbs")) {
+            console.log(`[DEBUG Prune] Checking '${currentPath}' (ID: ${node.id}). Children: ${updatedChildren.length} (Real: ${realContent.length})`);
+            console.log(`[DEBUG Prune] Protected? Path='${fullPathLower}'`);
+          }
+
+          const rootPrefixes = [
+            "bookmarks toolbar/",
+            "bookmarks menu/",
+            "other bookmarks/",
+            "mobile bookmarks/"
+          ];
+
+          let relativePath = fullPathLower;
+          for (const prefix of rootPrefixes) {
+            if (relativePath.startsWith(prefix)) {
+              relativePath = relativePath.substring(prefix.length);
+              break;
+            }
+          }
+
+          if (protectedPaths.has(fullPathLower) || protectedPaths.has(relativePath)) {
+            if (fullPathLower.includes("entertainment")) console.log(`[DEBUG Prune] '${currentPath}' is PROTECTED.`);
+          } else {
+            console.log(`Pruning empty (or separator-only) folder: ${currentPath} (ID: ${node.id})`);
+            // Use removeTree to delete folder AND its separators
+            await browser.bookmarks.removeTree(node.id);
+          }
         } else {
-          console.log(`Pruning empty folder: ${currentPath}`);
-          try { await browser.bookmarks.remove(node.id); } catch (e) { }
+          // Check why it's not empty
+          if (fullPathLower.includes("entertainment")) {
+            console.log(`[DEBUG Prune] '${currentPath}' NOT EMPTY. Contains: ${realContent.map(c => c.title || c.url || c.id).join(', ')}`);
+          }
         }
+      } catch (e) {
+        console.warn(`Prune failed for '${currentPath}':`, e);
       }
     }
   }
 
-  const toolbar = await browser.bookmarks.getSubTree("toolbar_____");
-  if (toolbar && toolbar[0]) {
-    await traverseAndPrune(toolbar[0], "");
+  // Start from the real root
+  const tree = await browser.bookmarks.getTree();
+  if (tree && tree[0]) {
+    await traverseAndPrune(tree[0], "");
   }
   console.log("Pruning complete.");
 }

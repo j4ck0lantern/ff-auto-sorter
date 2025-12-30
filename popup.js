@@ -1,177 +1,150 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // Theme Logic (Non-blocking)
-  (async () => {
-    try {
-      const { themePreference } = await browser.storage.local.get("themePreference");
-      if (themePreference) {
-        document.documentElement.setAttribute('data-theme', themePreference);
-      }
-    } catch (e) {
-      console.error("Theme load error", e);
-    }
-  })();
+console.log("Popup Script LOADED");
 
-document.addEventListener('DOMContentLoaded', () => {
-  console.log("Popup DOMContentLoaded");
-
-  // 1. Grab Elements Immediately
-  const toggleBtn = document.getElementById('themeToggle');
-  const organizeAllBtn = document.getElementById('organizeAll');
-  const classifyAllBtn = document.getElementById('classifyAll');
-  const clearTagsBtn = document.getElementById('clearTags');
-  const openSettingsBtn = document.getElementById('openSettings');
-
+const initPopup = () => {
   const statusEl = document.getElementById('status');
-  if (!statusEl) return; // Should not happen
+  if (statusEl) statusEl.textContent = "JS Init...";
 
-  const progressContainer = document.getElementById('progress-container');
-  const progressBar = document.getElementById('progress-bar');
-  const progressText = document.getElementById('progress-text');
-  const progressDetail = document.getElementById('progress-detail');
+  try {
+    // 1. Grab Elements
+    const toggleBtn = document.getElementById('themeToggle');
+    const organizeAllBtn = document.getElementById('organizeAll');
+    const classifyAllBtn = document.getElementById('classifyAll');
+    const clearTagsBtn = document.getElementById('clearTags');
+    const openSettingsBtn = document.getElementById('openSettings');
 
-  // 2. Setup UI Helpers
-  function updateProgress(current, total, detail = "") {
-    if (total >= 0) {
-      progressContainer.style.display = 'block';
-      const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
-      progressBar.style.width = `${percentage}%`;
-      progressText.textContent = `${current} / ${total} processed (${percentage}%)`;
-      progressDetail.textContent = detail ? `${detail}` : "Processing...";
-    } else {
-      progressContainer.style.display = 'none';
-    }
-  }
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const progressDetail = document.getElementById('progress-detail');
 
-  function setButtonsDisabled(disabled) {
-    if (organizeAllBtn) organizeAllBtn.disabled = disabled;
-    if (classifyAllBtn) classifyAllBtn.disabled = disabled;
-    if (clearTagsBtn) clearTagsBtn.disabled = disabled;
-  }
-
-  function updateStatus(message, type = 'default') {
-    statusEl.textContent = message;
-    statusEl.className = '';
-    if (type === 'working') statusEl.classList.add('status-working');
-    else if (type === 'success') statusEl.classList.add('status-success');
-    else if (type === 'error') statusEl.classList.add('status-error');
-  }
-
-  function updateUI(state) {
-    if (state.isScanning) {
-      setButtonsDisabled(true);
-      updateStatus("Task in progress...", "working");
-      updateProgress(state.progress.current, state.progress.total, state.progress.detail);
-    } else {
-      setButtonsDisabled(false);
-      progressContainer.style.display = 'none';
-      if (state.lastResult) {
-        if (state.lastResult.success) {
-          updateStatus("Task Complete!", "success");
-        } else if (state.lastResult.error) {
-          updateStatus(`Error: ${state.lastResult.error}`, "error");
-        }
+    // 2. Definitions
+    const updateProgress = (current, total, detail = "") => {
+      if (!progressContainer) return;
+      if (total >= 0) {
+        progressContainer.style.display = 'block';
+        const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+        progressBar.style.width = `${percentage}%`;
+        progressText.textContent = `${current} / ${total}`;
+        progressDetail.textContent = detail ? `${detail}` : "Processing...";
       } else {
-        updateStatus("Ready");
+        progressContainer.style.display = 'none';
       }
-    }
-  }
+    };
 
-  // 3. Setup Listeners
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', async () => {
-      try {
-        const current = document.documentElement.getAttribute('data-theme');
-        const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        let newTheme = 'dark';
-        if (current === 'dark') newTheme = 'light';
-        else if (current === 'light') newTheme = 'dark';
-        else newTheme = isSystemDark ? 'light' : 'dark';
+    const setButtonsDisabled = (disabled) => {
+      if (organizeAllBtn) organizeAllBtn.disabled = disabled;
+      if (classifyAllBtn) classifyAllBtn.disabled = disabled;
+      if (clearTagsBtn) clearTagsBtn.disabled = disabled;
+    };
 
-        document.documentElement.setAttribute('data-theme', newTheme);
-        await browser.storage.local.set({ themePreference: newTheme });
-      } catch (e) { console.error("Theme toggle error", e); }
-    });
-  }
+    const updateStatus = (message, type = 'default') => {
+      if (!statusEl) return;
 
-  if (organizeAllBtn) organizeAllBtn.addEventListener('click', () => triggerAction('organize-all'));
-  if (classifyAllBtn) classifyAllBtn.addEventListener('click', () => triggerAction('classify-all'));
-  if (clearTagsBtn) clearTagsBtn.addEventListener('click', () => {
-    if (confirm("Are you sure you want to remove ALL auto-sorter tags? This cannot be undone.")) {
-      triggerAction('clear-tags');
-    }
-  });
-  if (openSettingsBtn) openSettingsBtn.addEventListener('click', () => {
-    browser.runtime.openOptionsPage();
-  });
+      statusEl.textContent = message;
+      statusEl.className = '';
+      if (type === 'working') statusEl.classList.add('status-working');
+      else if (type === 'success') statusEl.classList.add('status-success');
+      else if (type === 'error') statusEl.classList.add('status-error');
+    };
 
-  browser.runtime.onMessage.addListener((message) => {
-    if (message.action === "scan-status-update" || message.action === "scan-progress-update") {
-      if (message.progress) updateProgress(message.progress.current, message.progress.total, message.progress.detail);
-      if (message.isScanning !== undefined) {
-        if (message.isScanning) {
-          setButtonsDisabled(true);
-          updateStatus("Working...", "working");
+    const updateUI = (state) => {
+      if (state.isScanning) {
+        setButtonsDisabled(true);
+        updateStatus("Working...", "working");
+        updateProgress(state.progress.current, state.progress.total, state.progress.detail);
+      } else {
+        setButtonsDisabled(false);
+        if (progressContainer) progressContainer.style.display = 'none';
+        if (state.lastResult) {
+          if (state.lastResult.success) updateStatus("Task Complete!", "success");
+          else if (state.lastResult.error) updateStatus(`Error: ${state.lastResult.error}`, "error");
         } else {
-          setButtonsDisabled(false);
-          updateStatus("Done.", "success");
-          setTimeout(() => updateStatus("Ready"), 3000);
+          updateStatus("Ready");
         }
       }
-    }
-  });
+    };
 
-  // --- Initialization ---
-
-  // Initialization: Check status with retry to handle background script wake-up
-  async function checkStatus(retries = 3, delayMs = 200) {
-    for (let i = 0; i < retries; i++) {
+    const triggerAction = async (actionName) => {
+      setButtonsDisabled(true);
+      updateStatus("Starting...", "working");
       try {
-        const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
-        if (response) {
-          updateUI(response);
-          return;
+        const response = await browser.runtime.sendMessage({ action: actionName });
+        if (response && response.error) {
+          updateStatus(response.error, "error");
+          setButtonsDisabled(false);
         }
-      } catch (e) {
-        console.warn(`Status check attempt ${i + 1} failed:`, e);
-        if (i < retries - 1) {
-          await new Promise(r => setTimeout(r, delayMs));
-        }
-      }
-    }
-    // If all retries failed
-    console.error("Failed to get status from background.");
-    // Force UI to ready state so user can at least try to interact
-    updateStatus("Ready (Connection Retry Failed)", "error");
-    setButtonsDisabled(false);
-  }
-
-  // Start status check immediately
-  checkStatus();
-
-    } catch (e) {
-      console.error("Popup Async Init Error:", e);
-      // Don't show error to user immediately if it's just a background wakeup issue,
-      // but if the status check fails, UI stays 'Ready' which is fine.
-    }
-  })();
-
-  // 5. Action Trigger Logic
-  async function triggerAction(actionName) {
-    setButtonsDisabled(true);
-    updateStatus("Starting...", "working");
-    updateProgress(0, 0, "Initializing...");
-
-    try {
-      const response = await browser.runtime.sendMessage({ action: actionName });
-      if (response && response.error) {
-        updateStatus(response.error, "error");
+      } catch (err) {
+        console.error("Action Error:", err);
+        updateStatus("Failed: " + err.message, "error");
         setButtonsDisabled(false);
       }
-    } catch (e) {
-      console.error("Error triggering action:", e);
-      updateStatus("Failed to start (Check Console)", "error");
-      setButtonsDisabled(false);
-    }
-  }
+    };
 
-});
+    // 3. Listeners
+    if (toggleBtn) toggleBtn.addEventListener('click', async () => {
+      const { themePreference } = await browser.storage.local.get("themePreference");
+      const newTheme = (themePreference === 'dark') ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      await browser.storage.local.set({ themePreference: newTheme });
+    });
+
+    if (organizeAllBtn) organizeAllBtn.addEventListener('click', () => triggerAction('organize-all'));
+    if (classifyAllBtn) classifyAllBtn.addEventListener('click', () => triggerAction('classify-all'));
+    if (clearTagsBtn) clearTagsBtn.addEventListener('click', () => {
+      if (confirm("Clear all tags?")) triggerAction('clear-tags');
+    });
+    if (openSettingsBtn) openSettingsBtn.addEventListener('click', () => browser.runtime.openOptionsPage());
+
+    browser.runtime.onMessage.addListener((message) => {
+      if (message.action === "scan-status-update" || message.action === "scan-progress-update") {
+        if (message.progress) updateProgress(message.progress.current, message.progress.total, message.progress.detail);
+        if (message.isScanning !== undefined) {
+          if (message.isScanning) {
+            setButtonsDisabled(true);
+            updateStatus("Working...", "working");
+          } else {
+            setButtonsDisabled(false);
+            updateStatus("Done.", "success");
+            setTimeout(() => updateStatus("Ready"), 3000);
+          }
+        }
+      }
+    });
+
+    // 4. Init with Timeout
+    const init = async () => {
+      try {
+        // Theme
+        const { themePreference } = await browser.storage.local.get("themePreference");
+        if (themePreference) document.documentElement.setAttribute('data-theme', themePreference);
+
+        // Status Check
+        if (statusEl) statusEl.textContent = "Connecting...";
+
+        const response = await Promise.race([
+          browser.runtime.sendMessage({ action: "get-scan-status" }),
+          new Promise(r => setTimeout(() => r({ timeout: true }), 1500))
+        ]);
+
+        if (response && response.timeout) {
+          updateUI({ isScanning: false });
+        } else if (response) {
+          updateUI(response);
+        } else {
+          updateUI({ isScanning: false });
+        }
+      } catch (e) {
+        console.error("Popup Init Error", e);
+        updateStatus("Error: " + e.message, "error");
+      }
+    };
+
+    init();
+
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "Fatal: " + e.message;
+  }
+};
+
+// Run immediately (Script is at bottom of body)
+initPopup();
