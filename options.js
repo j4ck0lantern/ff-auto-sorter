@@ -777,24 +777,28 @@ function renderTags() {
   const container = document.getElementById('keywordsContainer');
   // Clear tags but keep input
   const input = document.getElementById('keywordInput');
-  container.innerHTML = '';
+  container.textContent = ''; // Clear container safely
 
   currentTags.forEach((tag, idx) => {
     const span = document.createElement('span');
     span.className = 'tag';
-    span.innerHTML = `${tag} <span class="tag-close" data-idx="${idx}">×</span>`;
-    container.appendChild(span);
-  });
-  container.appendChild(input);
 
-  // Delegate delete
-  container.querySelectorAll('.tag-close').forEach(btn => {
-    btn.onclick = (e) => {
-      const idx = parseInt(e.target.getAttribute('data-idx'));
+    // Tag Text
+    span.appendChild(document.createTextNode(tag + ' '));
+
+    // Close Button
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'tag-close';
+    closeBtn.textContent = '×';
+    closeBtn.onclick = () => {
       currentTags.splice(idx, 1);
       renderTags();
     };
+
+    span.appendChild(closeBtn);
+    container.appendChild(span);
   });
+  container.appendChild(input);
 }
 
 function deleteNode(rule, fullPath) {
