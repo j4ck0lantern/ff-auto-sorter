@@ -1,45 +1,34 @@
-document.addEventListener('DOMContentLoaded', async () => {
-  // Theme Logic
-  const { themePreference } = await browser.storage.local.get("themePreference");
-  if (themePreference) {
-    document.documentElement.setAttribute('data-theme', themePreference);
+// Top-level error trap
+window.addEventListener('error', (event) => {
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    statusEl.textContent = "Error: " + event.message;
+    statusEl.className = 'status-error';
   }
+});
 
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("Popup DOMContentLoaded");
+
+  // 1. Grab Elements Immediately
   const toggleBtn = document.getElementById('themeToggle');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', async () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      let newTheme = 'dark';
-
-      if (current === 'dark') newTheme = 'light';
-      else if (current === 'light') newTheme = 'dark';
-      else {
-        newTheme = isSystemDark ? 'light' : 'dark';
-      }
-
-      document.documentElement.setAttribute('data-theme', newTheme);
-      await browser.storage.local.set({ themePreference: newTheme });
-    });
-  }
-
   const organizeAllBtn = document.getElementById('organizeAll');
   const classifyAllBtn = document.getElementById('classifyAll');
   const clearTagsBtn = document.getElementById('clearTags');
   const openSettingsBtn = document.getElementById('openSettings');
 
   const statusEl = document.getElementById('status');
+  if (!statusEl) return; // Should not happen
+
   const progressContainer = document.getElementById('progress-container');
   const progressBar = document.getElementById('progress-bar');
   const progressText = document.getElementById('progress-text');
   const progressDetail = document.getElementById('progress-detail');
 
-  // --- UI Helper Functions ---
-
+  // 2. Setup UI Helpers
   function updateProgress(current, total, detail = "") {
-    if (total >= 0) { // Allow 0/0 to show "Starting..."
+    if (total >= 0) {
       progressContainer.style.display = 'block';
-
       const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
       progressBar.style.width = `${percentage}%`;
       progressText.textContent = `${current} / ${total} processed (${percentage}%)`;
@@ -50,22 +39,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function setButtonsDisabled(disabled) {
-    organizeAllBtn.disabled = disabled;
-    classifyAllBtn.disabled = disabled;
-    clearTagsBtn.disabled = disabled;
-    // Settings can remain enabled usually, but sticking to consistency
+    if (organizeAllBtn) organizeAllBtn.disabled = disabled;
+    if (classifyAllBtn) classifyAllBtn.disabled = disabled;
+    if (clearTagsBtn) clearTagsBtn.disabled = disabled;
   }
 
   function updateStatus(message, type = 'default') {
     statusEl.textContent = message;
-    statusEl.className = ''; // reset
+    statusEl.className = '';
     if (type === 'working') statusEl.classList.add('status-working');
     else if (type === 'success') statusEl.classList.add('status-success');
     else if (type === 'error') statusEl.classList.add('status-error');
-    // default uses inherited color var(--status)
   }
-
-  // --- Main State Handler ---
 
   function updateUI(state) {
     if (state.isScanning) {
@@ -75,7 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       setButtonsDisabled(false);
       progressContainer.style.display = 'none';
-
       if (state.lastResult) {
         if (state.lastResult.success) {
           updateStatus("Task Complete!", "success");
@@ -88,16 +72,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // --- Message Listeners ---
+  // 3. Setup Listeners
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      try {
+        const current = document.documentElement.getAttribute('data-theme');
+        const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        let newTheme = 'dark';
+        if (current === 'dark') newTheme = 'light';
+        else if (current === 'light') newTheme = 'dark';
+        else newTheme = isSystemDark ? 'light' : 'dark';
+
+        document.documentElement.setAttribute('data-theme', newTheme);
+        await browser.storage.local.set({ themePreference: newTheme });
+      } catch (e) { console.error("Theme toggle error", e); }
+    });
+  }
+
+  if (organizeAllBtn) organizeAllBtn.addEventListener('click', () => triggerAction('organize-all'));
+  if (classifyAllBtn) classifyAllBtn.addEventListener('click', () => triggerAction('classify-all'));
+  if (clearTagsBtn) clearTagsBtn.addEventListener('click', () => {
+    if (confirm("Are you sure you want to remove ALL auto-sorter tags? This cannot be undone.")) {
+      triggerAction('clear-tags');
+    }
+  });
+  if (openSettingsBtn) openSettingsBtn.addEventListener('click', () => {
+    browser.runtime.openOptionsPage();
+  });
 
   browser.runtime.onMessage.addListener((message) => {
     if (message.action === "scan-status-update" || message.action === "scan-progress-update") {
-      // If it's a progress update, specifically update the bar
-      if (message.progress) {
-        updateProgress(message.progress.current, message.progress.total, message.progress.detail);
-      }
-
-      // Use the isScanning flag to toggle buttons
+      if (message.progress) updateProgress(message.progress.current, message.progress.total, message.progress.detail);
       if (message.isScanning !== undefined) {
         if (message.isScanning) {
           setButtonsDisabled(true);
@@ -111,23 +116,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // --- Initialization ---
-
-  async function checkStatus() {
+  // 4. Async Initialization (Non-blocking)
+  (async () => {
     try {
-      const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
-      if (response) {
-        updateUI(response);
+      // Load Theme
+      const { themePreference } = await browser.storage.local.get("themePreference");
+      if (themePreference) {
+        document.documentElement.setAttribute('data-theme', themePreference);
       }
+
+      // Check Status
+      const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
+      if (response) updateUI(response);
+
     } catch (e) {
-      console.error("Error checking status:", e);
+      console.error("Popup Async Init Error:", e);
+      // Don't show error to user immediately if it's just a background wakeup issue,
+      // but if the status check fails, UI stays 'Ready' which is fine.
     }
-  }
+  })();
 
-  checkStatus();
-
-  // --- Button Handlers ---
-
+  // 5. Action Trigger Logic
   async function triggerAction(actionName) {
     setButtonsDisabled(true);
     updateStatus("Starting...", "working");
@@ -139,24 +148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateStatus(response.error, "error");
         setButtonsDisabled(false);
       }
-      // If success, the background script will emit status updates which our listener handles
     } catch (e) {
       console.error("Error triggering action:", e);
-      updateStatus("Failed to start.", "error");
+      updateStatus("Failed to start (Check Console)", "error");
       setButtonsDisabled(false);
     }
   }
-
-  organizeAllBtn.addEventListener('click', () => triggerAction('organize-all'));
-  classifyAllBtn.addEventListener('click', () => triggerAction('classify-all'));
-  clearTagsBtn.addEventListener('click', () => {
-    if (confirm("Are you sure you want to remove ALL auto-sorter tags? This cannot be undone.")) {
-      triggerAction('clear-tags');
-    }
-  });
-
-  openSettingsBtn.addEventListener('click', () => {
-    browser.runtime.openOptionsPage();
-  });
 
 });
