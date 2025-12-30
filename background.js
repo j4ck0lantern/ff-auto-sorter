@@ -96,6 +96,20 @@ browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
     return;
   }
   await organizeBookmark(bookmark);
+  await organizeBookmark(bookmark);
+});
+
+/* --- Config Change Listener --- */
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' || area === 'local') {
+    if (changes.sorterConfig) {
+      console.log("[Background] Configuration changed, reloading...");
+      loadMainConfig();
+    }
+    if (changes.aiConfig) {
+      // reload AI config if needed, or just let functions fetch it fresh
+    }
+  }
 });
 
 /* --- HELPER: Deduplicate Bookmarks --- */

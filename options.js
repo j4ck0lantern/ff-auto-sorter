@@ -401,6 +401,19 @@ function setupMainListeners() {
   });
 
   document.getElementById('saveMainsBtn').addEventListener('click', async () => {
+    // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
+    const json = JSON.stringify({ sorterConfig: configTree });
+    const bytes = new Blob([json]).size;
+    const MAX_SYNC_BYTES = 8192; // Conservative limit (Chrome/FF vary, 8KB is safe lower bound)
+
+    if (bytes > MAX_SYNC_BYTES) {
+      console.warn(`Config size (${bytes} bytes) exceeds Sync limit (${MAX_SYNC_BYTES}). Saving locally only.`);
+      await browser.storage.local.set({ sorterConfig: configTree });
+      setDirty(false);
+      showStatus(document.getElementById('mainStatus'), "Saved locally (Config too large for Sync).", "orange");
+      return;
+    }
+
     try {
       await browser.storage.sync.set({ sorterConfig: configTree });
       // Also save local as backup?
@@ -408,10 +421,11 @@ function setupMainListeners() {
       setDirty(false);
       showStatus(document.getElementById('mainStatus'), "Configuration Saved (Synced)!", "green");
     } catch (e) {
+      console.warn("Sync failed despite check, falling back.", e);
       // Fallback if quota exceeded
       await browser.storage.local.set({ sorterConfig: configTree });
       setDirty(false);
-      showStatus(document.getElementById('mainStatus'), "Saved locally (Sync quota exceeded).", "orange");
+      showStatus(document.getElementById('mainStatus'), "Saved locally (Sync error).", "orange");
     }
   });
 

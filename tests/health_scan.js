@@ -4,7 +4,12 @@ const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SRC_FILES = ['background.js', 'options.js', 'popup.js', 'db.js'];
-const TEST_FILES = ['tests/test_logic_core.js', 'tests/test_options_logic.js', 'tests/test_progress_bug.js'];
+const TEST_FILES = [
+    'tests/test_logic_core.js',
+    'tests/test_options_logic.js',
+    'tests/test_progress_bug.js',
+    'tests/test_config_hot_reload.js'
+];
 
 let errorCount = 0;
 let warnCount = 0;
