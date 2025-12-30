@@ -902,7 +902,8 @@ function renderSuggestions(suggestions) {
 
       const keywordsDiv = document.createElement('div');
       keywordsDiv.className = 'suggestion-keywords';
-      keywordsDiv.textContent = `Add Keywords: ${item.addKeywords.join(', ')}`;
+      const kws = item.addKeywords || item.keywords || [];
+      keywordsDiv.textContent = `Add Keywords: ${kws.join(', ')}`;
 
       contentDiv.appendChild(folderRow);
       contentDiv.appendChild(keywordsDiv);
