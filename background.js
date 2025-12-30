@@ -24,18 +24,22 @@ browser.runtime.onInstalled.addListener(async (details) => {
   }
 
   // Create Context Menu
-  browser.menus.create({
-    id: "classify-single-bookmark",
-    title: "Classify with AI",
-    contexts: ["bookmark"],
-  });
+  try {
+    browser.menus.create({
+      id: "classify-single-bookmark",
+      title: "Classify with AI",
+      contexts: ["bookmark"],
+    });
 
-  // NEW: Sort Selected Tabs
-  browser.menus.create({
-    id: "sort-selected-tabs",
-    title: "Bookmark and AI Sort Tabs 🤖",
-    contexts: ["tab"]
-  });
+    // NEW: Sort Selected Tabs
+    browser.menus.create({
+      id: "sort-selected-tabs",
+      title: "Bookmark and AI Sort Tabs 🤖",
+      contexts: ["tab"]
+    });
+  } catch (e) {
+    console.warn("Context menu creation failed (likely duplicate):", e);
+  }
 });
 
 /* --- Context Menu Listener --- */
@@ -83,6 +87,8 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 
 /* --- Bookmark Created Listener --- */
 browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
+  if (!bookmark.url) return; // Ignore folders
+
   const searchResults = await browser.bookmarks.search({ url: bookmark.url });
   if (searchResults.length > 1) {
     console.log("Duplicate found, removing.");
