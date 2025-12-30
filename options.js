@@ -1008,9 +1008,18 @@ async function startStaticAnalysis() {
 
   modal.classList.add('active');
   loading.classList.remove('hidden');
-  loading.innerHTML = '<div style="font-size: 2rem;">⚠️</div><p>Checking duplicates & substrings...</p>';
+
+  loading.textContent = '';
+  const icon = document.createElement('div');
+  icon.style.fontSize = '2rem';
+  icon.textContent = '⚠️';
+  const p = document.createElement('p');
+  p.textContent = 'Checking duplicates & substrings...';
+  loading.appendChild(icon);
+  loading.appendChild(p);
+
   results.classList.add('hidden');
-  results.innerHTML = '';
+  results.textContent = ''; // clear using textContent since empty
 
   try {
     const response = await browser.runtime.sendMessage({
@@ -1023,43 +1032,62 @@ async function startStaticAnalysis() {
     renderStaticResults(response);
 
   } catch (e) {
-    loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+    loading.textContent = `Error: ${e.message}`;
+    loading.style.color = 'red';
   }
 }
 
 function renderStaticResults(data) {
   const container = document.getElementById('conflict-results');
-  container.innerHTML = '';
+  container.textContent = ''; // clear safely
 
   if ((!data.duplicates || data.duplicates.length === 0) &&
     (!data.substrings || data.substrings.length === 0)) {
-    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ No static conflicts found!</div>';
+    const msg = document.createElement('div');
+    msg.style.textAlign = 'center';
+    msg.style.padding = '20px';
+    msg.style.color = 'green';
+    msg.textContent = '✅ No static conflicts found!';
+    container.appendChild(msg);
     return;
   }
 
   // 1. Duplicates
   if (data.duplicates && data.duplicates.length > 0) {
     const section = document.createElement('div');
-    section.innerHTML = `<h4>⚠️ Exact Duplicate Keywords</h4>`;
+    const h4 = document.createElement('h4');
+    h4.textContent = '⚠️ Exact Duplicate Keywords';
+    section.appendChild(h4);
+
     data.duplicates.forEach(d => {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
       div.style.borderLeft = '4px solid #f44336';
 
-      let actionsHtml = d.folders.map(f => `
-           <button class="secondary small-btn" onclick="applyRemoveKeyword('${f.replace(/'/g, "\\'")}', '${d.keyword.replace(/'/g, "\\'")}')">
-             Remove from "${f}"
-           </button>
-       `).join(' ');
+      const details = document.createElement('div');
+      details.className = 'suggestion-details';
 
-      div.innerHTML = `
-         <div class="suggestion-details">
-           <strong>"${d.keyword}"</strong> in multiple folders:
-           <div style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;">
-             ${actionsHtml}
-           </div>
-         </div>
-       `;
+      const strong = document.createElement('strong');
+      strong.textContent = `"${d.keyword}"`;
+      details.appendChild(strong);
+      details.appendChild(document.createTextNode(' in multiple folders:'));
+
+      const actionContainer = document.createElement('div');
+      actionContainer.style.marginTop = '5px';
+      actionContainer.style.display = 'flex';
+      actionContainer.style.gap = '5px';
+      actionContainer.style.flexWrap = 'wrap';
+
+      d.folders.forEach(f => {
+        const btn = document.createElement('button');
+        btn.className = 'secondary small-btn';
+        btn.textContent = `Remove from "${f}"`;
+        btn.onclick = () => window.applyRemoveKeyword(f, d.keyword);
+        actionContainer.appendChild(btn);
+      });
+
+      details.appendChild(actionContainer);
+      div.appendChild(details);
       section.appendChild(div);
     });
     container.appendChild(section);
@@ -1068,24 +1096,52 @@ function renderStaticResults(data) {
   // 2. Substrings
   if (data.substrings && data.substrings.length > 0) {
     const section = document.createElement('div');
-    section.innerHTML = `<h4>⚠️ Substring Conflicts</h4>`;
+    const h4 = document.createElement('h4');
+    h4.textContent = '⚠️ Substring Conflicts';
+    section.appendChild(h4);
+
     data.substrings.forEach(d => {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
       div.style.borderLeft = '4px solid #ff9800';
-      div.innerHTML = `
-         <div class="suggestion-details">
-           <strong>"${d.short}"</strong> vs <strong>"${d.long}"</strong>
-           <div style="font-size:0.9em; margin-top:5px;">
-             <em>${d.foldersShort.join(', ')}</em> vs <em>${d.foldersLong.join(', ')}</em>
-           </div>
-           <div style="margin-top:5px;">
-              <button class="secondary small-btn" onclick="applyRemoveKeyword(null, '${d.short.replace(/'/g, "\\'")}', true)">
-                Delete "${d.short}" from all folders
-              </button>
-           </div>
-         </div>
-       `;
+
+      const details = document.createElement('div');
+      details.className = 'suggestion-details';
+
+      const strongShort = document.createElement('strong');
+      strongShort.textContent = `"${d.short}"`;
+      const strongLong = document.createElement('strong');
+      strongLong.textContent = `"${d.long}"`;
+
+      details.appendChild(strongShort);
+      details.appendChild(document.createTextNode(' vs '));
+      details.appendChild(strongLong);
+
+      const subDiv = document.createElement('div');
+      subDiv.style.fontSize = '0.9em';
+      subDiv.style.marginTop = '5px';
+
+      const em1 = document.createElement('em');
+      em1.textContent = d.foldersShort.join(', ');
+      const em2 = document.createElement('em');
+      em2.textContent = d.foldersLong.join(', ');
+
+      subDiv.appendChild(em1);
+      subDiv.appendChild(document.createTextNode(' vs '));
+      subDiv.appendChild(em2);
+      details.appendChild(subDiv);
+
+      const btnDiv = document.createElement('div');
+      btnDiv.style.marginTop = '5px';
+
+      const btn = document.createElement('button');
+      btn.className = 'secondary small-btn';
+      btn.textContent = `Delete "${d.short}" from all folders`;
+      btn.onclick = () => window.applyRemoveKeyword(null, d.short, true);
+
+      btnDiv.appendChild(btn);
+      details.appendChild(btnDiv);
+      div.appendChild(details);
       section.appendChild(div);
     });
     container.appendChild(section);
@@ -1100,9 +1156,18 @@ async function startSemanticAnalysis() {
 
   modal.classList.add('active');
   loading.classList.remove('hidden');
-  loading.innerHTML = '<div style="font-size: 2rem;">🤖</div><p>Asking AI for structural advice...</p>';
+
+  loading.textContent = '';
+  const icon = document.createElement('div');
+  icon.style.fontSize = '2rem';
+  icon.textContent = '🤖';
+  const p = document.createElement('p');
+  p.textContent = 'Asking AI for structural advice...';
+  loading.appendChild(icon);
+  loading.appendChild(p);
+
   results.classList.add('hidden');
-  results.innerHTML = '';
+  results.textContent = '';
 
   try {
     const response = await browser.runtime.sendMessage({
@@ -1115,43 +1180,71 @@ async function startSemanticAnalysis() {
     renderSemanticResults(response);
 
   } catch (e) {
-    loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+    loading.textContent = `Error: ${e.message}`;
+    loading.style.color = "red";
   }
 }
 
 function renderSemanticResults(data) {
   const container = document.getElementById('conflict-results');
-  container.innerHTML = '';
+  container.textContent = ''; // safe clear
 
   if (!data.aiAnalysis || data.aiAnalysis.length === 0) {
-    container.innerHTML = '<div style="text-align:center; padding:20px; color:green;">✅ AI found no obvious semantic issues.</div>';
+    const msg = document.createElement('div');
+    msg.style.textAlign = 'center';
+    msg.style.padding = '20px';
+    msg.style.color = 'green';
+    msg.textContent = '✅ AI found no obvious semantic issues.';
+    container.appendChild(msg);
     return;
   }
 
   const section = document.createElement('div');
-  section.innerHTML = `<h4>🤖 Semantic Analysis</h4>`;
+  const h4 = document.createElement('h4');
+  h4.textContent = '🤖 Semantic Analysis';
+  section.appendChild(h4);
 
   data.aiAnalysis.forEach((d, idx) => {
     const div = document.createElement('div');
     div.className = 'suggestion-item';
     div.style.borderLeft = '4px solid #9c27b0';
 
-    let actionBtn = '';
+    const details = document.createElement('div');
+    details.className = 'suggestion-details';
+
+    const strong = document.createElement('strong');
+    strong.textContent = d.issue;
+    details.appendChild(strong);
+
+    const subDiv = document.createElement('div');
+    subDiv.style.marginTop = '5px';
+    subDiv.style.fontSize = '0.9em';
+
+    // Severity
+    const sevSpan = document.createElement('span');
+    sevSpan.style.fontWeight = 'bold';
+    if (d.severity === 'High') sevSpan.style.color = 'red';
+    sevSpan.textContent = `Severity: ${d.severity || 'Info'}`;
+
+    subDiv.appendChild(sevSpan);
+    subDiv.appendChild(document.createElement('br'));
+    subDiv.appendChild(document.createTextNode(`Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}`));
+    details.appendChild(subDiv);
+
     if (d.action) {
-      const actionJson = JSON.stringify(d.action).replace(/"/g, '&quot;');
-      actionBtn = `<button class="success small-btn" onclick="applyAIAction(this, ${actionJson})">Fix: ${d.action.type}</button>`;
+      const btnDiv = document.createElement('div');
+      btnDiv.style.marginTop = '8px';
+
+      const btn = document.createElement('button');
+      btn.className = 'success small-btn';
+      btn.textContent = `Fix: ${d.action.type}`;
+      btn.onclick = () => window.applyAIAction(btn, d.action);
+
+      btnDiv.appendChild(btn);
+      details.appendChild(btnDiv);
     }
 
-    div.innerHTML = `
-       <div class="suggestion-details">
-         <strong>${d.issue}</strong>
-         <div style="margin-top:5px; font-size:0.9em;">
-           Severity: <span style="font-weight:bold; color:${d.severity === 'High' ? 'red' : 'inherit'}">${d.severity || 'Info'}</span>
-           <br>Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}
-         </div>
-         <div style="margin-top:8px;">${actionBtn}</div>
-       </div>
-     `;
+    div.appendChild(details);
     section.appendChild(div);
   });
   container.appendChild(section);
