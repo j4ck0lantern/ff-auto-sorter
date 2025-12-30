@@ -240,6 +240,21 @@ async function getAllFolders(node) {
   return folders;
 }
 
+/* --- Helper: Build Folder Map (Cache) --- */
+function buildFolderMap(node, map = new Map(), parentId = null) {
+  // Augment node with parentId (crucial for reverse traversal)
+  if (node.id) {
+    if (!node.parentId && parentId) node.parentId = parentId;
+    map.set(node.id, node);
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      buildFolderMap(child, map, node.id);
+    }
+  }
+  return map;
+}
+
 /* --- Helper: Delay --- */
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -295,7 +310,7 @@ function broadcastState() {
 }
 
 /* --- LOGIC: Organize (Rules Based) --- */
-async function organizeBookmark(bookmark) {
+async function organizeBookmark(bookmark, folderMap = null) {
   let sorterConfig;
   try {
     const sync = await browser.storage.sync.get("sorterConfig");
@@ -423,7 +438,14 @@ async function organizeBookmark(bookmark) {
         for (let i = 0; i < 8; i++) { // Max depth 8 safety
           if (sysRoots.includes(current.parentId)) break; // Reached Root's child (Top Level)
 
-          const ups = await browser.bookmarks.get(current.parentId);
+          let ups;
+          if (folderMap) {
+            ups = folderMap.get(current.parentId); // Sync Lookup (Fast)
+            if (ups) ups = [ups]; // Mimic API array format
+          } else {
+            ups = await browser.bookmarks.get(current.parentId); // Async API (Slow)
+          }
+
           if (!ups || !ups[0]) {
             isValidHierarchy = false; // Orphaned?
             break;
@@ -741,6 +763,15 @@ browser.runtime.onMessage.addListener(async (message) => {
       broadcastState();
       bookmarks = await deduplicateBookmarks(bookmarks);
 
+      // PRE-CALCULATE FOLDER MAP (Speed Boost)
+      scanProgress.detail = "Building folder cache...";
+      broadcastState();
+      // Re-fetch tree to be safe after dedupe (though unlikely to change folders)
+      // Actually, dedupe removes bookmarks, not folders. We can use the original tree?
+      // Better to fetch fresh to be safe.
+      const freshTree = await browser.bookmarks.getTree();
+      const folderMap = buildFolderMap(freshTree[0]);
+
       scanProgress.total = bookmarks.length;
       broadcastState();
 
@@ -749,8 +780,8 @@ browser.runtime.onMessage.addListener(async (message) => {
         scanProgress.current++;
         scanProgress.detail = b.title || b.url; // Fallback
         broadcastState();
-        // await delay(10); // Faster processing
-        await organizeBookmark(b);
+        // Pass the cached map
+        await organizeBookmark(b, folderMap);
       }
 
       // 3. Consolidate Folders

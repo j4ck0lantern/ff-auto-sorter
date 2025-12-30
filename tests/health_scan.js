@@ -8,7 +8,9 @@ const TEST_FILES = [
     'tests/test_logic_core.js',
     'tests/test_options_logic.js',
     'tests/test_progress_bug.js',
-    'tests/test_config_hot_reload.js'
+    'tests/test_config_hot_reload.js',
+    'tests/test_performance_cache.js',
+    'tests/test_keyword_matching.js'
 ];
 
 let errorCount = 0;
