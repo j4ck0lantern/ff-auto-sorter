@@ -858,7 +858,8 @@ async function startSmartSuggest() {
       throw new Error(response.error || "No suggestions returned");
     }
   } catch (e) {
-    loading.innerHTML = `<p style="color:red">Error: ${e.message}</p>`;
+    loading.textContent = `Error: ${e.message}`;
+    loading.style.color = "red";
   }
 }
 
@@ -867,7 +868,7 @@ function renderSuggestions(suggestions) {
   container.innerHTML = '';
 
   if (suggestions.length === 0) {
-    container.innerHTML = '<p>No patterns found.</p>';
+    container.textContent = 'No patterns found.';
     return;
   }
 
@@ -875,32 +876,70 @@ function renderSuggestions(suggestions) {
     const div = document.createElement('div');
     div.className = 'suggestion-item';
 
-    let badge = "";
-    let content = "";
+    let badge = document.createElement('span');
+    badge.style.padding = '2px 6px';
+    badge.style.borderRadius = '4px';
+    badge.style.fontSize = '0.7em';
+    badge.style.marginRight = '5px';
 
+    const contentDiv = document.createElement('div');
+    const folderRow = document.createElement('div');
+    folderRow.style.fontWeight = 'bold';
+
+    // Badge & Color Logic
     if (item.type === 'refine') {
-      div.style.borderLeft = "4px solid #2196F3"; // Blue for update
-      badge = `<span style="background:#e3f2fd; color:#1976d2; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:5px;">UPDATE</span>`;
-      content = `
-            <div style="font-weight:bold">${badge} ${item.folder}</div>
-            <div class="suggestion-keywords">Add Keywords: ${item.addKeywords.join(', ')}</div>
-            <div style="font-size:0.75rem; color:#888; margin-top:2px;">Based on ${item.bookmarkCount || '?'} bookmarks</div>
-        `;
+      div.style.borderLeft = "4px solid #2196F3";
+      badge.style.background = '#e3f2fd';
+      badge.style.color = '#1976d2';
+      badge.textContent = 'UPDATE';
+
+      folderRow.appendChild(badge);
+      folderRow.appendChild(document.createTextNode(item.folder));
+
+      const keywordsDiv = document.createElement('div');
+      keywordsDiv.className = 'suggestion-keywords';
+      keywordsDiv.textContent = `Add Keywords: ${item.addKeywords.join(', ')}`;
+
+      contentDiv.appendChild(folderRow);
+      contentDiv.appendChild(keywordsDiv);
+
     } else {
-      // NEW
-      div.style.borderLeft = "4px solid #4CAF50"; // Green for new
-      badge = `<span style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:5px;">NEW</span>`;
-      content = `
-            <div style="font-weight:bold">${badge} ${item.folder}</div>
-            <div class="suggestion-keywords">Keywords: ${item.keywords.join(', ')}</div>
-            <div style="font-size:0.75rem; color:#888; margin-top:2px;">Based on ${item.bookmarkCount} bookmarks</div>
-        `;
+      div.style.borderLeft = "4px solid #4CAF50";
+      badge.style.background = '#e8f5e9';
+      badge.style.color = '#2e7d32';
+      badge.textContent = 'NEW';
+
+      folderRow.appendChild(badge);
+      folderRow.appendChild(document.createTextNode(item.folder));
+
+      const keywordsDiv = document.createElement('div');
+      keywordsDiv.className = 'suggestion-keywords';
+      keywordsDiv.textContent = `Keywords: ${item.keywords.join(', ')}`;
+
+      contentDiv.appendChild(folderRow);
+      contentDiv.appendChild(keywordsDiv);
     }
 
-    div.innerHTML = `
-            <input type="checkbox" class="suggestion-chk" id="sug-${idx}" checked>
-            <div class="suggestion-details">${content}</div>
-        `;
+    const subText = document.createElement('div');
+    subText.style.fontSize = '0.75rem';
+    subText.style.color = '#888';
+    subText.style.marginTop = '2px';
+    subText.textContent = `Based on ${item.bookmarkCount || '?'} bookmarks`;
+    contentDiv.appendChild(subText);
+
+    // Checkbox
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'suggestion-chk';
+    chk.id = `sug-${idx}`;
+    chk.checked = true;
+
+    const detailsDiv = document.createElement('div');
+    detailsDiv.className = 'suggestion-details';
+    detailsDiv.appendChild(contentDiv);
+
+    div.appendChild(chk);
+    div.appendChild(detailsDiv);
     container.appendChild(div);
   });
 }
