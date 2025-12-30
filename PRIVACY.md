@@ -21,7 +21,7 @@ If you verify and choose to enable these features by providing your own API Key:
 *   **Data Sent**: To classify a bookmark or suggest folders, the extension sends the **Title** and **URL** of the specific bookmarks you select (or your folder configuration) to your chosen AI provider.
 *   **Providers**:
     *   **Google Gemini**: If you use a Gemini API key, data is processed by Google. [Google Privacy Policy](https://policies.google.com/privacy)
-    *   **OpenAI**: If you use an OpenAI API key, data is processed by OpenAI. [OpenAI Enterprise Privacy](https://openai.com/enterprise-privacy)
+    *   **OpenAI & Compatible Services**: If you use an OpenAI API key or a URL for an OpenAI-compatible service (e.g., local LLMs, other providers), data is processed by that specific provider. See their respective privacy policies.
 *   **Retention**: We do not retain this data. It is sent strictly for the purpose of receiving a classification response and is then discarded by the extension.
 
 **If you do not add an API key, no data is ever sent to these third parties.**
