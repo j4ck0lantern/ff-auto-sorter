@@ -31,12 +31,39 @@ It helps you maintain a clean, organized library of links without manual effort.
 ## 🚀 Getting Started
 
 ### 1. Installation
-1.  Download the latest release.
-2.  Open Firefox and go to `about:debugging`.
-3.  Click **This Firefox** > **Load Temporary Add-on...**.
-4.  Select the `manifest.json` file.
+Install directly from the [Firefox Add-ons Store](https://addons.mozilla.org/firefox/addon/auto-sorter/).
 
-### 2. Configuration (The "Options" Page)
+*(Link will be active once reviewed by Mozilla)*
+
+### 2. Setting Up AI Services
+To unlock the full power of Auto Sorter (Smart Suggest, Auto-Classify), you need to configure an AI provider.
+
+#### option A: Google Gemini (Easiest)
+1.  Go to [Google AI Studio](https://aistudio.google.com/).
+2.  Create a free API Key.
+3.  Paste it into the "AI Configuration" section in the extension's options.
+
+#### Option B: OpenAI or Compatible Services (Groq, Local LLMs)
+You can use OpenAI's GPT-4o or **any OpenAI-compatible API** (like [Groq](https://groq.com/) for lightning-fast speeds).
+
+**For OpenAI:**
+1.  Get your key from [platform.openai.com](https://platform.openai.com/).
+2.  Select "OpenAI Compatible" in the extension options.
+3.  **Base URL**: Leave default (`https://api.openai.com/v1`).
+4.  **Model**: `gpt-3.5-turbo` or `gpt-4o`.
+
+**For Groq (Fast & Cheap):**
+1.  Get a key from [console.groq.com](https://console.groq.com/).
+2.  Select "OpenAI Compatible".
+3.  **Base URL**: `https://api.groq.com/openai/v1`.
+4.  **Model**: `llama3-70b-8192` (or similar).
+
+> ⚠️ **Cost Disclaimer & Best Practices**:
+> *   **API Costs**: Using third-party APIs (OpenAI, Groq, etc.) may incur costs based on your usage. You are responsible for any fees charged by the AI provider.
+> *   **Rate Limits**: If you are classifying thousands of bookmarks, set the "Processing Speed" to **Normal** or **Slow** to avoid hitting rate limits.
+> *   **Privacy**: Your bookmark titles and URLs are sent to the provider you select. Do not classify sensitive bookmarks if you are uncomfortable sharing this data with the AI provider.
+
+### 3. Configuration (The "Options" Page)
 Click the extension icon and select **Settings** (or right-click the icon > Manage Extension > Options).
 
 #### **The Interface**
@@ -48,7 +75,7 @@ Click the extension icon and select **Settings** (or right-click the icon > Mana
     *   **Folder Tree**: Drag and drop folders to reorder. Click a folder to edit its keywords/regex.
     *   **Smart Suggest**: Click this to let AI analyze your unsorted bookmarks and suggest new categories.
 
-### 3. Usage
+### 4. Usage
 *   **Auto-Sort**: New bookmarks are automatically checked against your rules when created.
 *   **Context Menu**: Right-click any bookmark and classify it with AI.
 *   **Popup Menu**: Click the toolbar icon to access:
