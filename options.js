@@ -284,6 +284,16 @@ function renderNode(node, containerEl, index, totalSiblings) {
     const rCount = node.rule.config.regex ? node.rule.config.regex.length : 0;
     if (kCount + rCount > 0) badges.textContent = `${kCount} keys, ${rCount} regex`;
     else badges.textContent = '(Empty)';
+
+    if (node.rule.config.ignore) {
+      badges.textContent += " [IGNORED]";
+      badges.style.color = "#d9534f";
+    }
+    if (node.rule.config.default) {
+      badges.textContent += " ★ [DEFAULT]";
+      badges.style.color = "#ffc107"; // Gold
+      badges.style.fontWeight = "bold";
+    }
   } else {
     badges.textContent = '(Container)';
   }
@@ -307,6 +317,12 @@ function renderNode(node, containerEl, index, totalSiblings) {
   if (index === totalSiblings - 1) downBtn.disabled = true;
   else downBtn.onclick = (e) => { e.stopPropagation(); moveNode(node, 1); };
 
+  const addSubBtn = document.createElement('button');
+  addSubBtn.className = 'btn-icon';
+  addSubBtn.textContent = '➕';
+  addSubBtn.title = 'Add Subfolder';
+  addSubBtn.onclick = (e) => { e.stopPropagation(); openEditModal(null, null, node.fullPath + '/'); };
+
   const editBtn = document.createElement('button');
   editBtn.className = 'btn-icon';
   editBtn.textContent = '✏️';
@@ -321,6 +337,7 @@ function renderNode(node, containerEl, index, totalSiblings) {
 
   actions.appendChild(upBtn);
   actions.appendChild(downBtn);
+  actions.appendChild(addSubBtn);
   actions.appendChild(editBtn);
   actions.appendChild(delBtn);
 
@@ -445,6 +462,24 @@ function setupDatabaseListeners() {
     modeSel.value = storageMode || 'local';
   });
 
+  // Info Modal Logic
+  const infoBtn = document.getElementById('storageInfoBtn');
+  const infoModal = document.getElementById('storageInfoModal');
+  const closeInfoBtn = document.getElementById('closeStorageInfoBtn');
+
+  if (infoBtn && infoModal) {
+    infoBtn.addEventListener('click', () => {
+      infoModal.classList.add('active');
+    });
+    closeInfoBtn.addEventListener('click', () => {
+      infoModal.classList.remove('active');
+    });
+    // Close on click outside
+    infoModal.addEventListener('click', (e) => {
+      if (e.target === infoModal) infoModal.classList.remove('active');
+    });
+  }
+
   // Save Mode
   modeSel.addEventListener('change', async () => {
     const mode = modeSel.value;
@@ -462,7 +497,7 @@ function setupDatabaseListeners() {
   // Migrate Button
   document.getElementById('migrateBtn').addEventListener('click', async () => {
     const mode = modeSel.value;
-    if (!confirm(`Are you sure you want to migrate all tags TO ${mode.toUpperCase()} mode?\n\nThis will modify your bookmarks.`)) return;
+    if (!confirm(`Are you sure you want to migrate all tags TO ${mode.toUpperCase()} mode ?\n\nThis will modify your bookmarks.`)) return;
 
     try {
       // Trigger scan UI in sidebar if possible? Accessing popup logic is hard.
@@ -671,7 +706,7 @@ function getRulesForSubtree(node) {
 let currentTags = [];
 let originalFullPath = null;
 
-function openEditModal(rule, fullPath) {
+function openEditModal(rule, fullPath, initialFolderValue) {
   const modal = document.getElementById('folderModal');
   const title = document.getElementById('modalTitle');
 
@@ -681,11 +716,15 @@ function openEditModal(rule, fullPath) {
   const folderInput = document.getElementById('editFolderInput');
   const regexInput = document.getElementById('regexInput');
   const indexInput = document.getElementById('indexInput');
+  const ignoreChk = document.getElementById('ignoreFolderChk');
+  const defaultChk = document.getElementById('defaultFolderChk');
 
   if (rule) {
     title.textContent = "Edit Folder";
     folderInput.value = rule.folder;
     currentTags = rule.config.keywords ? [...rule.config.keywords] : [];
+    ignoreChk.checked = !!rule.config.ignore;
+    defaultChk.checked = !!rule.config.default;
     const regexStr = rule.config.regex ? rule.config.regex.map(r => r.pattern).join('\n') : "";
     regexInput.value = regexStr;
 
@@ -695,9 +734,11 @@ function openEditModal(rule, fullPath) {
 
   } else {
     title.textContent = "Add New Folder";
-    folderInput.value = "";
+    folderInput.value = initialFolderValue || "";
     regexInput.value = "";
     indexInput.value = "";
+    ignoreChk.checked = false;
+    defaultChk.checked = false;
   }
 
   renderTags();
@@ -733,6 +774,15 @@ function setupModalListeners() {
 
     const idxVal = document.getElementById('indexInput').value.trim();
     const index = idxVal !== "" ? parseInt(idxVal) : undefined;
+    const isIgnored = document.getElementById('ignoreFolderChk').checked;
+    const isDefault = document.getElementById('defaultFolderChk').checked;
+
+    // Enforce Singleton Default
+    if (isDefault) {
+      configTree.forEach(r => {
+        if (r.config) r.config.default = false;
+      });
+    }
 
     const newRule = {
       folder: folderPath,
@@ -740,7 +790,9 @@ function setupModalListeners() {
       config: {
         keywords: currentTags,
         regex: regexObjs,
-        comment: "Managed via GUI"
+        comment: "Managed via GUI",
+        ignore: isIgnored,
+        default: isDefault
       }
     };
 
@@ -771,6 +823,28 @@ function setupModalListeners() {
 
   // Apply suggestions
   document.getElementById('applySuggestBtn').addEventListener('click', applySuggestions);
+
+  // Copy/Paste Keywords
+  document.getElementById('copyKeywordsBtn').addEventListener('click', () => {
+    const text = currentTags.join(', ');
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Keywords copied to clipboard!");
+    });
+  });
+
+  document.getElementById('pasteKeywordsBtn').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const parts = text.split(/[,;\n]+/).map(s => s.trim()).filter(s => s.length > 0);
+      parts.forEach(p => {
+        if (!currentTags.includes(p)) currentTags.push(p);
+      });
+      renderTags();
+    } catch (e) {
+      alert("Failed to read clipboard: " + e);
+    }
+  });
 }
 
 function renderTags() {
@@ -802,7 +876,7 @@ function renderTags() {
 }
 
 function deleteNode(rule, fullPath) {
-  if (!confirm(`Delete ${fullPath} and all settings?`)) return;
+  if (!confirm(`Delete ${fullPath} and all settings ? `)) return;
 
   // If it's a specific rule, delete it.
   // If it's a container node (no rule, just implies folder structure), 
@@ -862,7 +936,7 @@ async function startSmartSuggest() {
       throw new Error(response.error || "No suggestions returned");
     }
   } catch (e) {
-    loading.textContent = `Error: ${e.message}`;
+    loading.textContent = `Error: ${e.message} `;
     loading.style.color = "red";
   }
 }
@@ -903,7 +977,7 @@ function renderSuggestions(suggestions) {
       const keywordsDiv = document.createElement('div');
       keywordsDiv.className = 'suggestion-keywords';
       const kws = item.addKeywords || item.keywords || [];
-      keywordsDiv.textContent = `Add Keywords: ${kws.join(', ')}`;
+      keywordsDiv.textContent = `Add Keywords: ${kws.join(', ')} `;
 
       contentDiv.appendChild(folderRow);
       contentDiv.appendChild(keywordsDiv);
@@ -919,7 +993,7 @@ function renderSuggestions(suggestions) {
 
       const keywordsDiv = document.createElement('div');
       keywordsDiv.className = 'suggestion-keywords';
-      keywordsDiv.textContent = `Keywords: ${item.keywords.join(', ')}`;
+      keywordsDiv.textContent = `Keywords: ${item.keywords.join(', ')} `;
 
       contentDiv.appendChild(folderRow);
       contentDiv.appendChild(keywordsDiv);
@@ -936,7 +1010,7 @@ function renderSuggestions(suggestions) {
     const chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.className = 'suggestion-chk';
-    chk.id = `sug-${idx}`;
+    chk.id = `sug - ${idx} `;
     chk.checked = true;
 
     const detailsDiv = document.createElement('div');
@@ -980,7 +1054,7 @@ function applySuggestions() {
           config: {
             keywords: item.keywords,
             regex: [],
-            comment: `Auto-suggested based on ${item.bookmarkCount} bookmarks`
+            comment: `Auto - suggested based on ${item.bookmarkCount} bookmarks`
           }
         });
         addedCount++;
@@ -996,7 +1070,7 @@ function applySuggestions() {
   if (addedCount > 0) msg.push(`Added ${addedCount} folders`);
   if (updatedCount > 0) msg.push(`Updated ${updatedCount} folders`);
 
-  showStatus(document.getElementById('mainStatus'), msg.length ? `${msg.join(' & ')}!` : "No changes applied", 'green');
+  showStatus(document.getElementById('mainStatus'), msg.length ? `${msg.join(' & ')} !` : "No changes applied", 'green');
 }
 
 /* --- CONFLICT ANALYSIS LOGIC --- */
@@ -1033,7 +1107,7 @@ async function startStaticAnalysis() {
     renderStaticResults(response);
 
   } catch (e) {
-    loading.textContent = `Error: ${e.message}`;
+    loading.textContent = `Error: ${e.message} `;
     loading.style.color = 'red';
   }
 }
@@ -1181,7 +1255,7 @@ async function startSemanticAnalysis() {
     renderSemanticResults(response);
 
   } catch (e) {
-    loading.textContent = `Error: ${e.message}`;
+    loading.textContent = `Error: ${e.message} `;
     loading.style.color = "red";
   }
 }
@@ -1225,11 +1299,11 @@ function renderSemanticResults(data) {
     const sevSpan = document.createElement('span');
     sevSpan.style.fontWeight = 'bold';
     if (d.severity === 'High') sevSpan.style.color = 'red';
-    sevSpan.textContent = `Severity: ${d.severity || 'Info'}`;
+    sevSpan.textContent = `Severity: ${d.severity || 'Info'} `;
 
     subDiv.appendChild(sevSpan);
     subDiv.appendChild(document.createElement('br'));
-    subDiv.appendChild(document.createTextNode(`Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'}`));
+    subDiv.appendChild(document.createTextNode(`Folders: ${d.affectedFolders ? d.affectedFolders.join(', ') : 'N/A'} `));
     details.appendChild(subDiv);
 
     if (d.action) {
@@ -1238,7 +1312,7 @@ function renderSemanticResults(data) {
 
       const btn = document.createElement('button');
       btn.className = 'success small-btn';
-      btn.textContent = `Fix: ${d.action.type}`;
+      btn.textContent = `Fix: ${d.action.type} `;
       btn.onclick = () => window.applyAIAction(btn, d.action);
 
       btnDiv.appendChild(btn);
@@ -1253,7 +1327,7 @@ function renderSemanticResults(data) {
 
 // --- ACTIONS ---
 window.applyRemoveKeyword = function (folderPath, keyword, allFolders = false) {
-  if (!confirm(`Remove keyword "${keyword}"?`)) return;
+  if (!confirm(`Remove keyword "${keyword}" ? `)) return;
 
   let changes = 0;
   const targetFolders = allFolders ? configTree.map(r => r.folder) : [folderPath];
@@ -1305,7 +1379,7 @@ window.applyAIAction = function (btn, action) {
       setDirty(true);
       document.getElementById('conflictModal').classList.remove('active');
       renderTree();
-      showStatus(document.getElementById('mainStatus'), `Merged ${action.source} into ${action.target}`, 'green');
+      showStatus(document.getElementById('mainStatus'), `Merged ${action.source} into ${action.target} `, 'green');
     } else {
       alert("Could not find source or target folders.");
     }

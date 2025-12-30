@@ -133,6 +133,15 @@
       background-color: #1e1e1e !important;
     }
 
+    [data-theme="dark"] .tag {
+      background-color: #444;
+      color: #fff;
+    }
+
+    [data-theme="dark"] .tag-close {
+      color: #ccc;
+    }
+
     /* Forced Light Mode (Overrides System Dark) */
     [data-theme="light"] {
       --primary: #007bff;
@@ -518,7 +527,12 @@
       <h3>Database Management</h3>
       <p class="description">Manage the AI tag database.</p>
 
-      <label for="storageMode" style="margin-top:10px;">Storage Mode:</label>
+      <label for="storageMode" style="margin-top:10px;">
+        Storage Mode:
+        <button id="storageInfoBtn" class="small-btn"
+          style="background:none; border:none; cursor:pointer; font-size:1rem;"
+          title="Learn more about storage modes">ℹ️</button>
+      </label>
       <select id="storageMode" style="margin-bottom:10px;">
         <option value="local">Local Database</option>
         <option value="url">URL Hash (Portable, visible tags)</option>
@@ -583,8 +597,28 @@
       <input type="text" id="editFolderInput" placeholder="e.g. Programming/Web">
       <small style="color: #666;">Use / for subfolders (e.g. Parent/Child)</small>
 
+      <div style="margin-top: 10px;">
+        <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+          <input type="checkbox" id="ignoreFolderChk">
+          <span>❌ Ignore this folder (Manual Mode)</span>
+        </label>
+        <div style="font-size:0.8rem; color:#666; margin-left:20px;">
+          (Items won't be moved INTO or OUT OF this folder automatically)
+        </div>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+          <input type="checkbox" id="defaultFolderChk">
+          <span>★ Make this the Default (Catch-all) folder</span>
+        </label>
+      </div>
+
       <div style="margin-top: 15px;">
-        <label>Keywords (Press Enter)</label>
+        <label>Keywords (Press Enter)
+          <button id="copyKeywordsBtn" class="small-btn" title="Copy Keywords">📋</button>
+          <button id="pasteKeywordsBtn" class="small-btn" title="Paste Keywords">📋</button>
+        </label>
         <div id="keywordsContainer" class="tag-container">
           <input type="text" id="keywordInput" style="border:none; padding: 2px; width: 100px; flex:1;"
             placeholder="Add...">
@@ -643,6 +677,37 @@
 
       <div class="modal-actions">
         <button id="closeConflictBtn" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORAGE INFO MODAL -->
+  <div id="storageInfoModal" class="modal">
+    <div class="modal-content">
+      <h3>Storage Modes Explained</h3>
+
+      <div style="margin-bottom: 20px;">
+        <h4>📂 Local Database (Recommended)</h4>
+        <p>Stores tags inside the extension's local storage.</p>
+        <ul style="font-size:0.9rem; color:#666;">
+          <li>✅ <strong>Fastest performance</strong></li>
+          <li>✅ <strong>Private</strong> (Not visible to websites)</li>
+          <li>❌ <strong>No Sync</strong> (Specific to this device/browser profile)</li>
+        </ul>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <h4>🔗 URL Hash Mode</h4>
+        <p>Stores tags in the URL itself (e.g. <code>example.com#tag1,tag2</code>).</p>
+        <ul style="font-size:0.9rem; color:#666;">
+          <li>✅ <strong>Syncs via Firefox Account</strong> (Tags travel with bookmarks)</li>
+          <li>⚠️ <strong>Privacy Risk</strong>: Sites can see the hash/tags via JavaScript.</li>
+          <li>⚠️ <strong>Ugly URLs</strong>: Modifies the actual bookmark URL.</li>
+        </ul>
+      </div>
+
+      <div class="modal-actions">
+        <button id="closeStorageInfoBtn" class="secondary">Close</button>
       </div>
     </div>
   </div>

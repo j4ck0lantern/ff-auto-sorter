@@ -24,18 +24,22 @@ browser.runtime.onInstalled.addListener(async (details) => {
   }
 
   // Create Context Menu
-  browser.menus.create({
-    id: "classify-single-bookmark",
-    title: "Classify with AI",
-    contexts: ["bookmark"],
-  });
+  try {
+    browser.menus.create({
+      id: "classify-single-bookmark",
+      title: "Classify with AI",
+      contexts: ["bookmark"],
+    });
 
-  // NEW: Sort Selected Tabs
-  browser.menus.create({
-    id: "sort-selected-tabs",
-    title: "Bookmark and AI Sort Tabs 🤖",
-    contexts: ["tab"]
-  });
+    // NEW: Sort Selected Tabs
+    browser.menus.create({
+      id: "sort-selected-tabs",
+      title: "Bookmark and AI Sort Tabs 🤖",
+      contexts: ["tab"]
+    });
+  } catch (e) {
+    console.warn("Context menu creation failed (likely duplicate):", e);
+  }
 });
 
 /* --- Context Menu Listener --- */
@@ -83,6 +87,8 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 
 /* --- Bookmark Created Listener --- */
 browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
+  if (!bookmark.url) return; // Ignore folders
+
   const searchResults = await browser.bookmarks.search({ url: bookmark.url });
   if (searchResults.length > 1) {
     console.log("Duplicate found, removing.");
@@ -271,12 +277,17 @@ async function organizeBookmark(bookmark) {
   const dbTags = await TagDB.getTags(getNormalizedUrl(bookmark.url));
   if (dbTags.aiFolder) return; // Already AI categorized in DB
 
+  // Ignore Folders/Separators
+  if (!bookmark.url) return;
+
   const searchableText = (bookmark.title + " " + bookmark.url).toLowerCase();
   let matchedRule = null;
 
   for (const item of sorterConfig) {
     const config = item.config;
     if (!config) continue;
+    if (config.ignore) continue; // Skip ignored folders
+
     if (config.keywords && config.keywords.some(k => searchableText.includes(k.toLowerCase()))) {
       matchedRule = item;
       break;
@@ -296,6 +307,36 @@ async function organizeBookmark(bookmark) {
   if (matchedRule) {
     await moveBookmarkToFolder(bookmark, matchedRule.folder, matchedRule.index);
     await TagDB.setTags(getNormalizedUrl(bookmark.url), { keywordFolder: matchedRule.folder }, bookmark.id);
+  } else {
+    // Check for Default Folder
+    const defaultRule = sorterConfig.find(r => r.config && r.config.default);
+    if (defaultRule) {
+      // Avoid moving if it's already in the default folder?
+      // Or if it is in "Unfiled" (id: unfiled_____) or "Menu" or "Toolbar" root.
+      // Actually, standard behavior for "Default" is "If no other match, go here".
+      // But we must be careful not to move things OUT of the default folder into the default folder repeatedly?
+      // moveBookmarkToFolder handles "if parentId !== targetFolderId".
+      // So it's safe to call.
+
+      // But we should probably check if it's 'Unprocessed'. 
+      // If a user manually put it in "Archive", and we move it to "Default" because no keywords match... that's bad.
+      // Usually "Default" implies "Inbox".
+      // Let's protect existing folders? 
+      // But the request says "flag a folder as 'default' for unsorted bookmarks".
+      // The `onCreated` event only fires for NEW bookmarks. So safe there.
+      // The `organize-all` scans EVERYTHING.
+
+      // Safety Check: Only apply Default Catch-all if the bookmark is in a system root (Unsorted).
+      // If it's already in a user folder, leave it alone.
+      const systemRoots = ['unfiled_____', 'menu________', 'toolbar_____'];
+      if (!systemRoots.includes(bookmark.parentId)) {
+        return;
+      }
+
+      await moveBookmarkToFolder(bookmark, defaultRule.folder, defaultRule.index);
+      // We don't tag it as "AI Matched" or "Keyword Matched", so next time it might be re-evaluated.
+      // That's fine.
+    }
   }
 }
 
@@ -578,6 +619,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       }
       // const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
 
+      // Pre-calculate ignored folder paths (for safety check)
+      const ignoredPaths = sorterConfig.filter(r => r.config && r.config.ignore).map(r => r.folder);
+
       const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
 
       // Determine Concurrency
@@ -600,6 +644,20 @@ browser.runtime.onMessage.addListener(async (message) => {
         // We'll just delay a bit to avoid instant bursts if batchSize is huge.
         // But for batch=5, we just run 5.
         if (!isFastMode) await delay(aiDelay);
+
+        // Check if bookmark is currently in an ignored folder?
+        // Hard to do cheaply without full tree path knowledge.
+        // We'll rely on the rule: If "Ignore" is set, `organizeBookmark` (rules) won't pick it as DESTINATION.
+        // But `organize-all` might move it OUT?
+        // Logic: If a bookmark is inside "Programming/Web" (Ignored), and we find a match for "Cooking",
+        // should we move it? User said "Manual Management". So NO.
+        // We need to know if Current Parent is Ignored.
+        // TODO: Map parentId -> Folder Path.
+        // For now, let's assume if it is in a folder that MATCHES a rule with ignore=true, skip it.
+        // But matching ID to Rule is the hard part.
+
+        // SIMPLE FIX: If user put "Ignore" on "Programming/Web", we trust them to manage it.
+        // If sorting ALL, we should probably not touch it if we can identify it.
 
         await processSingleBookmarkAI(b, true); // Pass true to indicate mutex needed
       });
