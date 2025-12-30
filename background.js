@@ -671,8 +671,19 @@ browser.runtime.onMessage.addListener(async (message) => {
               Bookmarks:
               ${inputList}
               
-              Output strictly JSON array:
-              [ { "type": "new", "folder": "Category", "keywords": ["k1"], "bookmarkCount": 1 } ]
+              Output strictly a JSON array of objects.
+              
+              Schema for NEW folders:
+              { "type": "new", "folder": "FolderName", "keywords": ["kw1", "kw2"], "bookmarkCount": 5 }
+              
+              Schema for REFINING existing folders:
+              { "type": "refine", "folder": "ExistingFolderName", "addKeywords": ["kw3", "kw4"], "bookmarkCount": 3 }
+              
+              Example Output:
+              [
+                { "type": "new", "folder": "Rust", "keywords": ["rustlang", "cargo"], "bookmarkCount": 2 },
+                { "type": "refine", "folder": "Dev", "addKeywords": ["typescript"], "bookmarkCount": 4 }
+              ]
           `;
       }
 
