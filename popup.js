@@ -1,9 +1,15 @@
-document.addEventListener('DOMContentLoaded', async () => {
-  // Theme Logic
-  const { themePreference } = await browser.storage.local.get("themePreference");
-  if (themePreference) {
-    document.documentElement.setAttribute('data-theme', themePreference);
-  }
+document.addEventListener('DOMContentLoaded', () => {
+  // Theme Logic (Non-blocking)
+  (async () => {
+    try {
+      const { themePreference } = await browser.storage.local.get("themePreference");
+      if (themePreference) {
+        document.documentElement.setAttribute('data-theme', themePreference);
+      }
+    } catch (e) {
+      console.error("Theme load error", e);
+    }
+  })();
 
   const toggleBtn = document.getElementById('themeToggle');
   if (toggleBtn) {
@@ -113,17 +119,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Initialization ---
 
-  async function checkStatus() {
-    try {
-      const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
-      if (response) {
-        updateUI(response);
+  // Initialization: Check status with retry to handle background script wake-up
+  async function checkStatus(retries = 3, delayMs = 200) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await browser.runtime.sendMessage({ action: "get-scan-status" });
+        if (response) {
+          updateUI(response);
+          return;
+        }
+      } catch (e) {
+        console.warn(`Status check attempt ${i + 1} failed:`, e);
+        if (i < retries - 1) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
       }
-    } catch (e) {
-      console.error("Error checking status:", e);
     }
+    // If all retries failed
+    console.error("Failed to get status from background.");
+    // Force UI to ready state so user can at least try to interact
+    updateStatus("Ready (Connection Retry Failed)", "error");
+    setButtonsDisabled(false);
   }
 
+  // Start status check immediately
   checkStatus();
 
   // --- Button Handlers ---
