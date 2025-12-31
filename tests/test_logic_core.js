@@ -62,7 +62,34 @@ function testPathValidation() {
         { path: "Other/Hobbies", expect: false, desc: "Partial Match Failing" }
     ];
 
-    // ...
+    let failures = 0;
+    scenarios.forEach(s => {
+        const result = isPathValid(s.path);
+        if (result === s.expect) {
+            console.log(`PASS: [${s.desc}] '${s.path}' -> ${result}`);
+        } else {
+            console.error(`FAIL: [${s.desc}] '${s.path}' -> Got ${result}, Expected ${s.expect}`);
+            failures++;
+        }
+    });
+    return failures === 0;
+}
+
+// 2. LOGIC TEST: Pruning Protection
+function testPruningProtection() {
+    console.log("\n--- Test: Pruning Protection ---");
+
+    // Simulate Prune Logic Building Protected Set
+    const protectedPaths = new Set();
+    mockConfig.forEach(rule => {
+        if (rule.folder) protectedPaths.add(rule.folder.toLowerCase());
+        const parts = rule.folder.split('/');
+        let acc = "";
+        parts.forEach(p => {
+            acc = acc ? `${acc}/${p}` : p;
+            protectedPaths.add(acc.toLowerCase());
+        });
+    });
 
     const pruningScenarios = [
         { path: "Hobbies", expectProtected: true },

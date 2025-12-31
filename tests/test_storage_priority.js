@@ -26,14 +26,17 @@ const mockStorage = {
 const mockBrowser = {
     storage: {
         ...mockStorage,
-        onChanged: { addListener: () => {} }
+        onChanged: { addListener: () => { } }
     },
-    runtime: { onInstalled: { addListener: () => {} }, onMessage: { addListener: () => {} } },
-    bookmarks: { onCreated: { addListener: () => {} } },
-    menus: { create: () => {}, onClicked: { addListener: () => {} } }
+    runtime: { onInstalled: { addListener: () => { } }, onMessage: { addListener: () => { } } },
+    bookmarks: { onCreated: { addListener: () => { } } },
+    menus: { create: () => { }, onClicked: { addListener: () => { } } }
 };
 
-// 2. Load background.js in Sandbox
+// 2. Load scripts in Sandbox
+const utilsPath = path.join(__dirname, '../utils.js');
+const utilsCode = fs.readFileSync(utilsPath, 'utf8');
+
 const bgPath = path.join(__dirname, '../background.js');
 const bgCode = fs.readFileSync(bgPath, 'utf8');
 
@@ -42,19 +45,24 @@ const sandbox = {
     console: console,
     setTimeout: setTimeout,
     clearTimeout: clearTimeout,
-    fetch: () => {},
+    fetch: () => { },
     TagDB: { getTags: async () => ({}) }, // Mock dependency
     URL: URL,
     // Add other globals if needed
 };
 
 vm.createContext(sandbox);
-vm.runInContext(bgCode, sandbox);
+
+// Transform const/let to var to ensure variables attach to sandbox global
+const transform = (code) => code.replace(/^const /gm, 'var ').replace(/^let /gm, 'var ');
+
+vm.runInContext(transform(utilsCode), sandbox);
+vm.runInContext(transform(bgCode), sandbox);
 
 // 3. Test Cases
 async function runTests() {
     console.log("=== TEST: Storage Priority (getConfig) ===");
-    
+
     const getConfig = sandbox.getConfig;
     if (typeof getConfig !== 'function') {
         console.error("FAIL: getConfig function not found in background.js scope.");
@@ -68,7 +76,7 @@ async function runTests() {
     console.log("\nScenario 1: Sync has data");
     mockStorage.syncData = { sorterConfig: [{ folder: "SyncFolder" }] };
     mockStorage.localData = { sorterConfig: [{ folder: "LocalFolder" }] };
-    
+
     let config = await getConfig();
     if (config.length === 1 && config[0].folder === "SyncFolder") {
         console.log("PASS: Preferred Sync when available.");

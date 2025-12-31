@@ -24,6 +24,9 @@ function loadScript(filename) {
 }
 
 loadScript('db.js');
+loadScript('utils.js');
+loadScript('folder_manager.js');
+loadScript('ai_manager.js');
 loadScript('background.js');
 
 // Helper to wait for background tasks (simulated with runTask)

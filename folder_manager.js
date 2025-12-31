@@ -117,6 +117,7 @@ async function traverseAndEnforce(parentId, treeNode) {
     const siblings = Object.values(treeNode.children).sort((a, b) => {
         const idxA = a.index !== undefined ? a.index : 999;
         const idxB = b.index !== undefined ? b.index : 999;
+        console.error(`COMPARING ${a.name}(${idxA}) vs ${b.name}(${idxB})`);
         if (idxA !== idxB) {
             return idxA - idxB;
         }

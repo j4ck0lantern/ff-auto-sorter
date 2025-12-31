@@ -18,6 +18,8 @@ function loadScript(filename) {
     eval.call(global, script);
 }
 
+loadScript('utils.js');
+loadScript('folder_manager.js');
 loadScript('background.js');
 
 async function testFolderOrdering() {
