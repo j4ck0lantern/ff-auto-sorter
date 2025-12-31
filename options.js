@@ -232,6 +232,40 @@ function parseConfigToTree(sortByIndex = true) {
   return root;
 }
 
+function rebuildConfigFromTree(node, list = []) {
+  // 1. Process Metadata for this Node (if not root)
+  if (!node.isRoot) {
+    // If Rule doesn't exist (Implicit Parent), CREATE IT.
+    if (!node.rule) {
+      console.log(`[Rebuild] Auto-creating rule for orphan: ${node.fullPath}`);
+      node.rule = {
+        folder: node.fullPath,
+        index: 0, // Will be updated below
+        config: {
+          keywords: [],
+          regex: [],
+          comment: "Auto-managed container"
+        }
+      };
+    }
+
+    // Update Index based on current position in parent
+    if (node.parent) {
+      const myIndex = node.parent.children.indexOf(node);
+      node.rule.index = myIndex;
+    }
+
+    // Ensure path is consistent (in case of renames/moves that didn't update rule yet)
+    node.rule.folder = node.fullPath;
+
+    list.push(node.rule);
+  }
+
+  // 2. Recurse Children
+  node.children.forEach(child => rebuildConfigFromTree(child, list));
+  return list;
+}
+
 // Ensure all folders in tree have a rule and correct index
 // This should be called AFTER the tree structure is modified (drag-drop or arrows)
 function syncConfigIndices(customTree) {
@@ -393,6 +427,11 @@ function setupMainListeners() {
   });
 
   document.getElementById('saveMainsBtn').addEventListener('click', async () => {
+    // 1. Force a Rebuild from the current Tree state
+    // This ensures any "Implicit" folders (e.g. parents created by parsing subfolders)
+    // are converted into actual rules with indices.
+    syncConfigIndices(rootNode);
+
     // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
     const json = JSON.stringify({ sorterConfig: configTree });
     const bytes = new Blob([json]).size;

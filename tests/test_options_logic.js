@@ -57,15 +57,35 @@ function parseConfigToTree(inputConfig) {
 }
 
 function rebuildConfigFromTree(node, list = []) {
-    // If this node has a rule, update its index based on its position in parent
-    if (node.rule && node.parent) {
-        const myIndex = node.parent.children.indexOf(node);
-        node.rule.index = myIndex;
-    }
+    // 1. Process Metadata for this Node (if not root)
+    if (!node.isRoot) {
+        // If Rule doesn't exist (Implicit Parent), CREATE IT.
+        if (!node.rule) {
+            console.log(`[Rebuild] (Test) Auto-creating rule for orphan: ${node.fullPath}`);
+            node.rule = {
+                folder: node.fullPath,
+                index: 0,
+                config: {
+                    keywords: [],
+                    regex: [],
+                    comment: "Auto-managed container"
+                }
+            };
+        }
 
-    if (node.rule) {
+        // Update Index based on current position in parent
+        if (node.parent) {
+            const myIndex = node.parent.children.indexOf(node);
+            node.rule.index = myIndex;
+        }
+
+        // Ensure path is consistent
+        node.rule.folder = node.fullPath;
+
         list.push(node.rule);
     }
+
+    // 2. Recurse Children
     node.children.forEach(child => rebuildConfigFromTree(child, list));
     return list;
 }
@@ -165,9 +185,48 @@ function testMixedOrderImport() {
     }
 }
 
+function testOrphanAdoption() {
+    console.log("\n--- Test: Orphan (Implicit Parent) Adoption ---");
+    // Scenario: User configures "A/B", but "A" is missing from config.
+    // The parser creates "A" as a container. Rebuild should turn "A" into a rule.
+
+    const partialConfig = [
+        { folder: "Parent/Child", index: 0, config: {} }
+    ];
+
+    // 1. Parse creates 'Parent' node (implicit)
+    const tree = parseConfigToTree(partialConfig);
+    const parentNode = tree.children.find(c => c.name === "Parent");
+
+    if (parentNode && !parentNode.rule) {
+        console.log("PASS: Parser created implicit parent node without rule.");
+    } else {
+        console.error("FAIL: Parser state unexpected.");
+    }
+
+    // 2. Rebuild should create rule for 'Parent'
+    const rebuilt = rebuildConfigFromTree(tree);
+    const parentRule = rebuilt.find(r => r.folder === "Parent");
+
+    if (parentRule) {
+        console.log("PASS: Rebuild auto-created rule for 'Parent'.");
+    } else {
+        console.error("FAIL: Rebuild failed to create rule for orphan parent.");
+    }
+
+    // Check index of child
+    const childRule = rebuilt.find(r => r.folder === "Parent/Child");
+    if (childRule && parentRule) {
+        // Parent is root's child, index 0 (if sorted)
+        // Child is Parent's child, index 0
+        console.log("PASS: Child preserved.");
+    }
+}
+
 // RUNNER
 console.log("=== STARTING OPTIONS LOGIC SUITE ===");
 testRoundTrip();
 testReorderUpdate();
 testMixedOrderImport();
+testOrphanAdoption();
 console.log("=== SUITE COMPLETE ===");
