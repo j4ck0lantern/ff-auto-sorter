@@ -1345,9 +1345,6 @@ async function traverseAndEnforce(parentId, treeNode) {
   }
 }
 
-// Start at Toolbar (Standard Root)
-await traverseAndEnforce("toolbar_____", configTree);
-}
 
 /* --- HELPER: Prune Empty Folders --- */
 async function pruneEmptyFolders() {
