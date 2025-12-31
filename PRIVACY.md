@@ -18,7 +18,7 @@ The extension includes optional "Smart Suggest" and "Auto-Classify" features pow
 
 If you verify and choose to enable these features by providing your own API Key:
 
-*   **Data Sent**: To classify a bookmark or suggest folders, the extension sends the **Title** and **URL** of the specific bookmarks you select (or your folder configuration) to your chosen AI provider.
+*   **Data Sent**: To classify a bookmark, suggest folders, or analyze your configuration, the extension sends the **Title** and **URL** of the specific bookmarks (if applicable) and your **entire folder rule configuration** (including folder names and keywords) to your chosen AI provider.
 *   **Providers**:
     *   **Google Gemini**: If you use a Gemini API key, data is processed by Google. [Google Privacy Policy](https://policies.google.com/privacy)
     *   **OpenAI & Compatible Services**: If you use an OpenAI API key or a URL for an OpenAI-compatible service (e.g., local LLMs, other providers), data is processed by that specific provider. See their respective privacy policies.
