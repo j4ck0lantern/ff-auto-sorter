@@ -546,7 +546,7 @@ function setupDatabaseListeners() {
 
   // Backup
   document.getElementById('backupDbBtn').addEventListener('click', async () => {
-    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Backup?";
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\n\nProceed with Backup?";
     if (!confirm(msg)) return;
 
     const { bookmarkTags } = await browser.storage.local.get('bookmarkTags');
@@ -561,7 +561,7 @@ function setupDatabaseListeners() {
 
   // Restore
   document.getElementById('restoreDbBtn').addEventListener('click', () => {
-    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Restore?";
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\n\nProceed with Restore?";
     if (confirm(msg)) {
       document.getElementById('restoreDbFile').click();
     }
