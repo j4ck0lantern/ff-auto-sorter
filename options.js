@@ -233,35 +233,13 @@ function parseConfigToTree(sortByIndex = true) {
 }
 
 // Ensure all folders in tree have a rule and correct index
-function syncConfigIndices() {
-  // 1. Build tree WITHOUT sorting (to keep current array/visual order)
-  const tree = parseConfigToTree(false);
-  // 2. Rebuild flat config, which updates indices and creates missing rules
+// This should be called AFTER the tree structure is modified (drag-drop or arrows)
+function syncConfigIndices(customTree) {
+  const tree = customTree || rootNode;
+  if (!tree) return;
+  // Rebuild flat config, which updates indices and creates missing rules
   configTree = rebuildConfigFromTree(tree);
-}
-
-// Regenerate the flat config array from the tree structure (DFS)
-// AND UPDATE INDICES based on visual order
-function rebuildConfigFromTree(node, list = []) {
-  if (node.parent && !node.isRoot) {
-    const myIndex = node.parent.children.indexOf(node);
-    if (!node.rule) {
-      // Create a "Container" rule so index is persisted
-      node.rule = {
-        folder: node.fullPath,
-        index: myIndex,
-        config: { keywords: [], regex: [] }
-      };
-    } else {
-      node.rule.index = myIndex;
-    }
-  }
-
-  if (node.rule) {
-    list.push(node.rule);
-  }
-  node.children.forEach(child => rebuildConfigFromTree(child, list));
-  return list;
+  console.log("[Sync] Updated rule indices:", configTree.map(r => `${r.folder}@${r.index}`).join(', '));
 }
 
 function renderTree() {
@@ -397,13 +375,14 @@ function moveNode(node, direction) {
 
   const targetIdx = idx + direction;
   if (targetIdx >= 0 && targetIdx < siblings.length) {
-    // Swap in parent's children array
+    // 1. Swap in parent's children array (modifies global rootNode indirectly)
     [siblings[idx], siblings[targetIdx]] = [siblings[targetIdx], siblings[idx]];
 
-    // Synchronize indices across the whole config
-    syncConfigIndices();
+    // 2. Synchronize indices in configTree based on this new tree structure
+    syncConfigIndices(rootNode);
 
     setDirty(true);
+    // 3. Render (which re-parses from updated configTree)
     renderTree();
   }
 }
@@ -414,9 +393,6 @@ function setupMainListeners() {
   });
 
   document.getElementById('saveMainsBtn').addEventListener('click', async () => {
-    // Final sync before save
-    syncConfigIndices();
-
     // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
     const json = JSON.stringify({ sorterConfig: configTree });
     const bytes = new Blob([json]).size;
@@ -748,7 +724,10 @@ function handleDrop(e, targetNode) {
     configTree.splice(targetIndex, 0, ...draggedRules);
   }
 
-  syncConfigIndices(); // Ensure indices are strictly correct after drop/reparent
+  // After drop, we must rebuild the tree WITHOUT sorting to capture new order, then sync indices
+  const unsortedTree = parseConfigToTree(false);
+  syncConfigIndices(unsortedTree);
+
   setDirty(true);
   renderTree();
 }
@@ -899,6 +878,10 @@ function setupModalListeners() {
 
     // Add new
     configTree.push(newRule);
+
+    // Sync from fresh tree to ensure visual order matches indices
+    const freshTree = parseConfigToTree(false); // Build tree in current array order
+    syncConfigIndices(freshTree);
 
     setDirty(true);
     renderTree();

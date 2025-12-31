@@ -1169,15 +1169,11 @@ async function findOrCreateSingleFolder(folderName, parentId, desiredIndex) {
     // Note: 'desiredIndex' is absolute. browser.bookmarks.move uses index relative to new parent.
     // If parent is same, it moves within list.
     if (desiredIndex !== undefined && existingFolder.index !== desiredIndex) {
+      console.log(`[Organize] Moving folder "${folderName}" (ID:${existingFolder.id}) from current index ${existingFolder.index} to desired index ${desiredIndex}`);
       try {
-        // Check if index is valid for current child count?
-        // If we want it at 0, just move to 0.
-        // If we want it at 1, but there is only 1 item (itself), it stays at 0.
-        // We should trust the rule. 
         await browser.bookmarks.move(existingFolder.id, { index: desiredIndex });
       } catch (e) {
-        // Often fails if index is out of bounds (e.g. index 5 but only 2 items).
-        // Fallback: Move to end? No, just ignore.
+        console.warn(`[Organize] Failed to move folder "${folderName}":`, e);
       }
     }
     return existingFolder.id;
@@ -1302,44 +1298,35 @@ async function enforceFolderStructure() {
       } else {
         // Intermediate node (e.g. "Work" in "Work/Tools")
         // Only update if it was 999 to avoid overwriting a better index from another rule.
-        if (currentNode.index === 999 && Array.isArray(rule.index)) {
-          currentNode.index = rule.index[depth] ?? 999;
+        if (currentNode.index === 999) {
+          if (Array.isArray(rule.index)) {
+            currentNode.index = rule.index[depth] ?? 999;
+          } else if (typeof rule.index === 'number' && depth === 0) {
+            // Assume top level number rule applies to root component
+            currentNode.index = rule.index;
+          }
         }
       }
     });
   });
 
-  // Re-traverse to fill in indices for intermediate parents if implied?
-  // Actually, loop above handles it if separate rules exist. 
-  // If "Programming" has no rule but "Programming/Web" exists, "Programming" has index 999.
-
-  // 2. Recursive Enforce & Sort
-  // parentId: ID of folder in browser
-  // treeNode: Node from configTree
   async function traverseAndEnforce(parentId, treeNode) {
-    const siblings = Object.values(treeNode.children);
-    if (siblings.length === 0) return;
-
-    // Sort siblings by desired index, then name
-    siblings.sort((a, b) => {
-      if (a.index !== b.index) return a.index - b.index;
+    // Convert children map to sorted array with robust fallbacks
+    const siblings = Object.values(treeNode.children).sort((a, b) => {
+      const idxA = a.index !== undefined ? a.index : 999;
+      const idxB = b.index !== undefined ? b.index : 999;
+      if (idxA !== idxB) return idxA - idxB;
       return a.name.localeCompare(b.name);
     });
+
+    if (siblings.length === 0) return;
+
+    console.log(`[Organize] Enforcing order for: ${siblings.map(s => `${s.name}(${s.index})`).join(', ')}`);
 
     // Apply to Browser
     for (let i = 0; i < siblings.length; i++) {
       const sib = siblings[i];
-      // Find or Create
-      // We pass 'i' as desiredIndex? 
-      // NO. If user config says "Home" is 0, "Security" is 1.
-      // Siblings array is now ["Home", "Security", ...].
-      // So we just enforce the order in the list: 0, 1, 2...
-      // This overrides the config's raw number with the *sorted relative position*.
-      // This is usually what users want: "Order these relative to each other".
-
-      // Use existing helper
       const folderId = await findOrCreateSingleFolder(sib.name, parentId, i);
-
       // Recursion
       await traverseAndEnforce(folderId, sib);
     }

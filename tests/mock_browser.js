@@ -70,8 +70,49 @@ const browser = {
             return results;
         },
         move: async (id, { parentId, index }) => {
-            // Simplified move
-            return { id, parentId, index };
+            const findAndRemove = (nodes) => {
+                for (let i = 0; i < nodes.length; i++) {
+                    if (nodes[i].id === id) {
+                        return nodes.splice(i, 1)[0];
+                    }
+                    if (nodes[i].children) {
+                        const res = findAndRemove(nodes[i].children);
+                        if (res) return res;
+                    }
+                }
+                return null;
+            };
+
+            const item = findAndRemove(browser.bookmarks._tree);
+            if (!item) return { id, parentId, index };
+
+            // Find new parent and attach
+            const findAndAttach = (nodes) => {
+                for (const n of nodes) {
+                    if (n.id === (parentId || item.parentId)) {
+                        if (!n.children) n.children = [];
+                        const targetIdx = index !== undefined ? index : n.children.length;
+                        n.children.splice(targetIdx, 0, item);
+                        item.parentId = n.id;
+                        item.index = targetIdx;
+                        return true;
+                    }
+                    if (n.children && findAndAttach(n.children)) return true;
+                }
+                return false;
+            };
+
+            if (!findAndAttach(browser.bookmarks._tree)) {
+                // Fallback to top level
+                const targetIdx = index !== undefined ? index : browser.bookmarks._tree.length;
+                browser.bookmarks._tree.splice(targetIdx, 0, item);
+                item.index = targetIdx;
+            }
+
+            // Mock indices for all siblings in the affected parent
+            // (Real API updates all indices when one moves)
+            // This is a simplification but helps tests
+            return { id, parentId: item.parentId, index: item.index };
         },
         onCreated: { addListener: () => { } },
         onRemoved: { addListener: () => { } },

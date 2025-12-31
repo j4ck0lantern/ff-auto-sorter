@@ -34,6 +34,12 @@ async function testFolderOrdering() {
         }
     ]);
 
+    // 0. Pre-create folders in WRONG order
+    console.log("Pre-creating folders in wrong order (Zebra, Apple, Banana)...");
+    await browser.bookmarks.create({ parentId: toolbarId, title: "Zebra", id: "z" });
+    await browser.bookmarks.create({ parentId: toolbarId, title: "Apple", id: "a" });
+    await browser.bookmarks.create({ parentId: toolbarId, title: "Banana", id: "b" });
+
     // 1. Setup Config with specific indices
     // Order in array is scrambled, indices define the real order.
     const testConfig = [
