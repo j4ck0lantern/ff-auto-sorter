@@ -23,7 +23,8 @@ if (-not (Test-Path $SevenZipPath)) {
     # Check if in PATH
     if (Get-Command "7z" -ErrorAction SilentlyContinue) {
         $SevenZipPath = "7z"
-    } else {
+    }
+    else {
         Write-Error "7-Zip not found! Please install 7-Zip (https://www.7-zip.org/) or ensure 7z.exe is in your PATH."
     }
 }
@@ -51,43 +52,39 @@ $ExcludeList = @(
     "BUILD.md",
     "PRIVACY.md",
     "LICENSE",
-    "README.md"
+    "README.md",
+    ".agent",
+    ".gemini"
 )
 
 # Construct arguments for 7z
-# Note: 7z exclude syntax is -x!path
-$ExcludesArgs = $ExcludeList | ForEach-Object { "-x!$_" }
+# Use -xr! to explicitly recurse exclude for directories/files matching pattern
+# This ensures 'tests' directory is skipped even if * matches it
+$ExcludesArgs = $ExcludeList | ForEach-Object { "-xr!$_" }
 
-$Files = @(
-    "manifest.json",
-    "*.js",
-    "*.html",
-    "*.css",
-    "icons",
-    "_locales"
-)
-
-# We pass * to include everything, then exclude specific folders
-# This ensures we don't miss new files, but requires careful exclusion
-# Alternatively, we can specify list. 
-# Let's specify exact wildcards to be safe and avoid including random things.
-# However, the user might add files later.
-# Standard practice: Include everything * except excludes.
+$OutputFile = Join-Path (Get-Location) "$ProjectName-$Version.zip"
 
 Write-Host "Creating archive $OutputFile..." -ForegroundColor Cyan
 
 $ProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
 $ProcessInfo.FileName = $SevenZipPath
-# Argument syntax: a <archive_name> <files> <excludes>
 $ProcessInfo.Arguments = "a -tzip -mx9 ""$OutputFile"" * $($ExcludesArgs -join ' ')"
+$ProcessInfo.WorkingDirectory = (Get-Location).Path
 $ProcessInfo.RedirectStandardOutput = $true
+$ProcessInfo.RedirectStandardError = $true
 $ProcessInfo.UseShellExecute = $false
 
 $Process = [System.Diagnostics.Process]::Start($ProcessInfo)
+$stdout = $Process.StandardOutput.ReadToEnd()
+$stderr = $Process.StandardError.ReadToEnd()
 $Process.WaitForExit()
 
 if ($Process.ExitCode -eq 0) {
+    Write-Host $stdout
     Write-Host "✅ Build Success! Created $OutputFile" -ForegroundColor Green
-} else {
+}
+else {
     Write-Error "❌ Build Failed with exit code $($Process.ExitCode)"
+    Write-Error $stderr
+    Write-Error $stdout
 }
