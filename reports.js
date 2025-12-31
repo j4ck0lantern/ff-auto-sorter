@@ -40,10 +40,21 @@ document.addEventListener("DOMContentLoaded", async () => {
             const div = document.createElement("div");
             div.className = "report-item";
             div.dataset.id = r.id;
-            div.innerHTML = `
-                <div class="date">${r.type} <span style="font-weight:normal;">(${r.stats.moved} moved)</span></div>
-                <div class="meta">${dateStr}</div>
-            `;
+            const dateDiv = document.createElement("div");
+            dateDiv.className = "date";
+            dateDiv.textContent = r.type + " ";
+
+            const span = document.createElement("span");
+            span.style.fontWeight = "normal";
+            span.textContent = `(${r.stats.moved} moved)`;
+            dateDiv.appendChild(span);
+
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "meta";
+            metaDiv.textContent = dateStr;
+
+            div.appendChild(dateDiv);
+            div.appendChild(metaDiv);
             div.onclick = () => loadReport(r.id);
             listContainer.appendChild(div);
         });
@@ -84,12 +95,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("moves-section").style.display = "block";
             report.moves.forEach(m => {
                 const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td><a href="${m.url}" target="_blank">${escapeHtml(m.title)}</a></td>
-                    <td style="color:var(--muted);">${escapeHtml(m.from)}</td>
-                    <td style="font-weight:500;">${escapeHtml(m.to)}</td>
-                    <td><small>${escapeHtml(m.reason)}</small></td>
-                `;
+                const tdTitle = document.createElement("td");
+                const aIdx = document.createElement("a");
+                aIdx.href = m.url;
+                aIdx.target = "_blank";
+                aIdx.textContent = m.title;
+                tdTitle.appendChild(aIdx);
+                tr.appendChild(tdTitle);
+
+                const tdFrom = document.createElement("td");
+                tdFrom.style.color = "var(--muted)";
+                tdFrom.textContent = m.from;
+                tr.appendChild(tdFrom);
+
+                const tdTo = document.createElement("td");
+                tdTo.style.fontWeight = "500";
+                tdTo.textContent = m.to;
+                tr.appendChild(tdTo);
+
+                const tdReason = document.createElement("td");
+                const small = document.createElement("small");
+                small.textContent = m.reason;
+                tdReason.appendChild(small);
+                tr.appendChild(tdReason);
+
                 movesTbody.appendChild(tr);
             });
         } else {
@@ -102,11 +131,27 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("tags-section").style.display = "block";
             report.tags.forEach(t => {
                 const tr = document.createElement("tr");
-                const tagsHtml = t.tags.map(tag => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join(" ");
-                tr.innerHTML = `
-                    <td><a href="${t.url}" target="_blank">${escapeHtml(t.title)}</a></td>
-                    <td>${tagsHtml}</td>
-                `;
+                const tdTitle = document.createElement("td");
+                const aProp = document.createElement("a");
+                aProp.href = t.url;
+                aProp.target = "_blank";
+                aProp.textContent = t.title;
+                tdTitle.appendChild(aProp);
+                tr.appendChild(tdTitle);
+
+                const tdTags = document.createElement("td");
+                if (t.tags) {
+                    t.tags.forEach(tag => {
+                        const span = document.createElement("span");
+                        span.className = "tag-pill";
+                        span.textContent = tag;
+                        tdTags.appendChild(span);
+                        // Add a space to match previous layout
+                        tdTags.appendChild(document.createTextNode(" "));
+                    });
+                }
+                tr.appendChild(tdTags);
+
                 tagsTbody.appendChild(tr);
             });
         } else {

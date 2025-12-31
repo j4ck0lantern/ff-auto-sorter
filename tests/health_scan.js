@@ -19,7 +19,8 @@ const TEST_FILES = [
     'tests/test_folder_sorting_logic.js',
     'tests/test_sequence.js',
     'tests/test_reproduce_folder_gaps.js',
-    'tests/test_concurrency.js'
+    'tests/test_concurrency.js',
+    'tests/test_reports_xss.js'
 ];
 
 let errorCount = 0;
