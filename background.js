@@ -112,6 +112,23 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+/* --- HELPER: Get Config (Robust) --- */
+async function getConfig() {
+  let sorterConfig = null;
+  try {
+    const sync = await browser.storage.sync.get("sorterConfig");
+    sorterConfig = sync.sorterConfig;
+  } catch (e) { }
+
+  if (!sorterConfig || (Array.isArray(sorterConfig) && sorterConfig.length === 0)) {
+    const local = await browser.storage.local.get("sorterConfig");
+    if (local.sorterConfig && local.sorterConfig.length > 0) {
+      sorterConfig = local.sorterConfig;
+    }
+  }
+  return sorterConfig || [];
+}
+
 /* --- HELPER: Deduplicate Bookmarks --- */
 // Returns a Promise that resolves to a filtered list of bookmarks (duplicates removed)
 async function deduplicateBookmarks(bookmarks) {
@@ -311,17 +328,8 @@ function broadcastState() {
 
 /* --- LOGIC: Organize (Rules Based) --- */
 async function organizeBookmark(bookmark, folderMap = null) {
-  let sorterConfig;
-  try {
-    const sync = await browser.storage.sync.get("sorterConfig");
-    sorterConfig = sync.sorterConfig;
-  } catch (e) { }
-
-  if (!sorterConfig) {
-    const local = await browser.storage.local.get("sorterConfig");
-    sorterConfig = local.sorterConfig;
-  }
-  if (!sorterConfig) return;
+  const sorterConfig = await getConfig();
+  if (!sorterConfig || sorterConfig.length === 0) return;
 
   // Clean URL first
   // const cleanUrl = cleanTrackingParams(bookmark.url);
@@ -650,9 +658,9 @@ async function fetchAI(promptData) {
 }
 
 async function processSingleBookmarkAI(bookmark, useMutex = false) {
-  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  const sorterConfig = await getConfig();
 
-  const promptData = await getAISuggestionPrompt(bookmark, sorterConfig || DEFAULT_CONFIG);
+  const promptData = await getAISuggestionPrompt(bookmark, (sorterConfig && sorterConfig.length) ? sorterConfig : DEFAULT_CONFIG);
   if (!promptData) return { success: false, error: "Configuration missing" };
 
   const result = await fetchAI(promptData);
@@ -814,15 +822,7 @@ browser.runtime.onMessage.addListener(async (message) => {
       scanProgress.total = bookmarks.length;
       broadcastState();
 
-      let sorterConfig;
-      try {
-        const sync = await browser.storage.sync.get("sorterConfig");
-        sorterConfig = sync.sorterConfig;
-      } catch (e) { }
-
-      if (!sorterConfig) {
-        sorterConfig = (await browser.storage.local.get("sorterConfig")).sorterConfig;
-      }
+      const sorterConfig = await getConfig();
 
       // Load AI Config for Speed
       let aiConfig;
@@ -1178,8 +1178,8 @@ async function findOrCreateSingleFolder(folderName, parentId, desiredIndex) {
 
 /* --- HELPER: Consolidate Folders (Global Smart Merge) --- */
 async function consolidateFolders() {
-  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
-  if (!sorterConfig) return;
+  const sorterConfig = await getConfig();
+  if (!sorterConfig || sorterConfig.length === 0) return;
 
   console.log("Consolidating folders (Smart Merge)...");
 
@@ -1238,8 +1238,8 @@ async function consolidateFolders() {
 
 /* --- HELPER: Enforce Folder Structure (Create & Sort by Config) --- */
 async function enforceFolderStructure() {
-  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
-  if (!sorterConfig) return;
+  const sorterConfig = await getConfig();
+  if (!sorterConfig || sorterConfig.length === 0) return;
 
   console.log("Enforcing folder structure...");
 
@@ -1332,7 +1332,7 @@ async function enforceFolderStructure() {
 async function pruneEmptyFolders() {
   console.log("Starting empty folder pruning...");
 
-  const { sorterConfig } = await browser.storage.local.get("sorterConfig");
+  const sorterConfig = await getConfig();
   // 1. Build Protected Set (Lowercase)
   const protectedPaths = new Set();
   if (sorterConfig) {
