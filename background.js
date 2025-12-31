@@ -1314,30 +1314,39 @@ async function enforceFolderStructure() {
     });
   });
 
-  async function traverseAndEnforce(parentId, treeNode) {
-    // Convert children map to sorted array with robust fallbacks
-    const siblings = Object.values(treeNode.children).sort((a, b) => {
-      const idxA = a.index !== undefined ? a.index : 999;
-      const idxB = b.index !== undefined ? b.index : 999;
-      if (idxA !== idxB) return idxA - idxB;
-      return a.name.localeCompare(b.name);
-    });
+  // DEBUG: Dump hierarchy
+  // console.log("Tree Structure:", JSON.stringify(configTree, null, 2));
 
-    if (siblings.length === 0) return;
-
-    console.log(`[Organize] Enforcing order for: ${siblings.map(s => `${s.name}(${s.index})`).join(', ')}`);
-
-    // Apply to Browser
-    for (let i = 0; i < siblings.length; i++) {
-      const sib = siblings[i];
-      const folderId = await findOrCreateSingleFolder(sib.name, parentId, i);
-      // Recursion
-      await traverseAndEnforce(folderId, sib);
-    }
-  }
-
-  // Start at Toolbar (Standard Root)
   await traverseAndEnforce("toolbar_____", configTree);
+}
+
+async function traverseAndEnforce(parentId, treeNode) {
+  // Convert children map to sorted array with robust fallbacks
+  const siblings = Object.values(treeNode.children).sort((a, b) => {
+    const idxA = a.index !== undefined ? a.index : 999;
+    const idxB = b.index !== undefined ? b.index : 999;
+    if (idxA !== idxB) {
+      // console.log(`Comparing ${a.name}(${idxA}) vs ${b.name}(${idxB}) -> ${idxA - idxB}`);
+      return idxA - idxB;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  if (siblings.length === 0) return;
+
+  console.log(`[Organize] Enforcing order for: ${siblings.map(s => `${s.name}(${s.index})`).join(', ')}`);
+
+  // Apply to Browser
+  for (let i = 0; i < siblings.length; i++) {
+    const sib = siblings[i];
+    const folderId = await findOrCreateSingleFolder(sib.name, parentId, i);
+    // Recursion
+    await traverseAndEnforce(folderId, sib);
+  }
+}
+
+// Start at Toolbar (Standard Root)
+await traverseAndEnforce("toolbar_____", configTree);
 }
 
 /* --- HELPER: Prune Empty Folders --- */
