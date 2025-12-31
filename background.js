@@ -103,8 +103,8 @@ browser.bookmarks.onCreated.addListener(async (id, bookmark) => {
 browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' || area === 'local') {
     if (changes.sorterConfig) {
-      console.log("[Background] Configuration changed, reloading...");
-      loadMainConfig();
+      console.log("[Background] Configuration changed in storage.");
+      // No action needed; getConfig() fetches fresh data on usage.
     }
     if (changes.aiConfig) {
       // reload AI config if needed, or just let functions fetch it fresh
@@ -649,7 +649,8 @@ async function fetchAI(promptData) {
 
     console.log("AI Raw Response:", responseText);
 
-    const jsonMatch = responseText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    // More robust JSON extraction (captures { ... })
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     } else {
