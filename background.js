@@ -1297,8 +1297,9 @@ async function enforceFolderStructure() {
         let ruleIdx = 999;
         if (Array.isArray(rule.index)) {
           ruleIdx = rule.index[depth] ?? 999;
-        } else if (typeof rule.index === 'number') {
-          ruleIdx = rule.index;
+        } else {
+          const rIdx = parseInt(rule.index, 10);
+          if (!isNaN(rIdx)) ruleIdx = rIdx;
         }
         currentNode.index = ruleIdx;
       } else {
@@ -1307,9 +1308,12 @@ async function enforceFolderStructure() {
         if (currentNode.index === 999) {
           if (Array.isArray(rule.index)) {
             currentNode.index = rule.index[depth] ?? 999;
-          } else if (typeof rule.index === 'number' && depth === 0) {
-            // Assume top level number rule applies to root component
-            currentNode.index = rule.index;
+          } else if (depth === 0) {
+            // Robust check for number or string number
+            const rIdx = parseInt(rule.index, 10);
+            if (!isNaN(rIdx)) {
+              currentNode.index = rIdx;
+            }
           }
         }
       }
