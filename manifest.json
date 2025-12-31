@@ -18,6 +18,9 @@
   "background": {
     "scripts": [
       "db.js",
+      "utils.js",
+      "folder_manager.js",
+      "ai_manager.js",
       "background.js"
     ]
   },

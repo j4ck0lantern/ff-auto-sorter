@@ -67,17 +67,24 @@ global.TagDB = {
     removeTags: async () => { }
 };
 
-// --- 2. Load Background Script ---
+// --- 2. Load Scripts ---
 function loadScript(filename) {
-    let script = fs.readFileSync(path.resolve(__dirname, '..', filename), 'utf8');
-    // Basic shim for const/let if needed, though node handles them fine usually.
-    // background.js might have top-level await or other issues if we don't be careful.
-    // But for this logic test, eval is okay.
-    eval.call(global, script);
+    const src = fs.readFileSync(path.resolve(__dirname, '..', filename), 'utf8');
+    // Basic shim for vm/eval
+    const vm = require('vm');
+    vm.runInThisContext(src, { filename: filename });
 }
 
-loadScript('db.js');
-loadScript('background.js');
+try {
+    loadScript('db.js');
+    loadScript('utils.js');
+    loadScript('folder_manager.js');
+    loadScript('ai_manager.js');
+    loadScript('background.js');
+} catch (e) {
+    console.error("Failed to load scripts:", e);
+    process.exit(1);
+}
 
 async function runTest() {
     console.log("=== TEST: Progress Regression ===");
