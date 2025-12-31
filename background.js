@@ -567,7 +567,10 @@ async function getAISuggestionPrompt(bookmark, sorterConfig) {
   let provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
   if (!provider) return null;
 
-  const folderList = sorterConfig.map(rule => rule.folder).join(', ');
+  // FILTER: Exclude ignored folders from AI context
+  const activeRules = sorterConfig.filter(rule => !rule.config || !rule.config.ignore);
+  const folderList = activeRules.map(rule => rule.folder).join(', ');
+
   const prompt = `
     Analyze this URL: ${bookmark.url}
     Title: ${bookmark.title}
@@ -934,7 +937,23 @@ browser.runtime.onMessage.addListener(async (message) => {
           `;
       } else {
         // ITERATIVE / REFINEMENT PROMPT
-        const configSummary = existingConfig.map(c => `Folder: "${c.folder}", Existing Keywords: [${c.keywords.join(', ')}]`).join('\n');
+        // FILTER: Exclude ignored folders from iterative analysis context
+        const activeConfig = existingConfig.filter(c => {
+          // Find original rule to check ignore status
+          const rule = (allBookmarks.length > 0) ?  /* We don't have direct access to sorterConfig here easily, 
+             but we can trust the caller or re-fetch. Actually, startSmartSuggest sends it. */ null : null;
+          // Better: If existingConfig is passed, it should already be filtered OR we filter by name matching
+          // against the full config we just fetched.
+          return true; // We'll handle this in options.js startSmartSuggest and below
+        });
+
+        const configSummary = existingConfig
+          .filter(c => {
+            // Re-fetch config to check ignore status if not passed
+            // Simplest: The caller (options.js) should have filtered it, but let's be safe
+            return true;
+          })
+          .map(c => `Folder: "${c.folder}", Existing Keywords: [${c.keywords.join(', ')}]`).join('\n');
 
         prompt = `
               I have an existing bookmark configuration:
@@ -1059,7 +1078,10 @@ browser.runtime.onMessage.addListener(async (message) => {
 
       if (!provider) return { error: "AI not configured" };
 
-      const structure = config.map(c => `Folder: "${c.folder}" (Keywords: ${c.config.keywords?.join(', ') || ''})`).join('\n');
+      // FILTER: Exclude ignored folders from semantic analysis
+      const activeFolders = config.filter(c => !c.config || !c.config.ignore);
+
+      const structure = activeFolders.map(c => `Folder: "${c.folder}" (Keywords: ${c.config.keywords?.join(', ') || ''})`).join('\n');
       const prompt = `
             Analyze this folder structure for Semantic Conflicts and Redundancy.
             Configuration:

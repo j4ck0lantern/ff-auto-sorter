@@ -134,6 +134,31 @@ async function testAIUsage() {
         process.exit(1);
     }
 
+    // --- TEST 5: Ignored Folders Omitted from AI Prompt ---
+    console.log("\nTEST 5: Ignored Folders Omitted from AI Prompt");
+    let capturedPrompt = "";
+    global.fetchAI = async (data) => {
+        capturedPrompt = data.prompt;
+        return { folder: "AI-Folder" };
+    };
+
+    const ignoredConfig = [
+        { folder: "Safe", config: { keywords: ["safe"] } },
+        { folder: "TOP-SECRET", config: { ignore: true, keywords: ["secret"] } }
+    ];
+    await browser.storage.local.set({ sorterConfig: ignoredConfig });
+
+    // Trigger classify for b2
+    const [b2] = await browser.bookmarks.get("b2");
+    await processSingleBookmarkAI(b2);
+
+    if (!capturedPrompt.includes("TOP-SECRET")) {
+        console.log("✅ PASS: Ignored folder name omitted from AI prompt.");
+    } else {
+        console.error("❌ FAIL: Ignored folder name was leaked in AI prompt.");
+        process.exit(1);
+    }
+
     console.log("\n=== SUITE COMPLETE: ALL FLOWS VERIFIED ===");
 }
 

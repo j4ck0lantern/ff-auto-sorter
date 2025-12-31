@@ -984,10 +984,13 @@ async function startSmartSuggest() {
     // Note: background.js needs to handle 'analyze-for-suggestions'
 
     // Extract current config context (Folder + Keywords)
-    const currentConfigContext = configTree.map(r => ({
-      folder: r.folder,
-      keywords: r.config.keywords || []
-    }));
+    // FILTER: Exclude IGNORED folders from suggestion context
+    const currentConfigContext = configTree
+      .filter(r => !r.config || !r.config.ignore)
+      .map(r => ({
+        folder: r.folder,
+        keywords: r.config.keywords || []
+      }));
 
     const response = await browser.runtime.sendMessage({
       action: 'analyze-for-suggestions',
