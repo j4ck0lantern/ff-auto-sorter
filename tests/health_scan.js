@@ -12,7 +12,8 @@ const TEST_FILES = [
     'tests/test_performance_cache.js',
     'tests/test_keyword_matching.js',
     'tests/test_css_dark_mode.js',
-    'tests/test_ai_logic_flow.js'
+    'tests/test_ai_logic_flow.js',
+    'tests/test_storage_priority.js'
 ];
 
 let errorCount = 0;
