@@ -1,14 +1,14 @@
 /**
- * REPRODUCTION: Top Level Sorting V2 (User Scenario)
+ * REPRODUCTION: Top Level Sorting V2 (Scenario)
  * 
- * User Report: "Sysadmin is now in the far left. Home is 6 to the right."
+ * Scenario: "Work is now in the far left. Personal is 6 to the right."
  * 
  * Config:
- * - Home: Index 0 (Ignore: true)
- * - SysAdmin: Index 6
- * - SysAdmin/Web Programming: (No Explicit Index?)
+ * - Personal: Index 0 (Ignore: true)
+ * - Work: Index 6
+ * - Work/Projects: (No Explicit Index?)
  * 
- * Expected: Home (0) -> ... -> SysAdmin (6).
+ * Expected: Personal (0) -> ... -> Work (6).
  */
 
 const fs = require('fs');
@@ -25,10 +25,13 @@ function loadScript(filename) {
 }
 
 loadScript('db.js');
+loadScript('utils.js');
+loadScript('folder_manager.js');
+loadScript('ai_manager.js');
 loadScript('background.js');
 
 async function testUserScenario() {
-    console.log("=== TEST: User Scenario Sorting ===\n");
+    console.log("=== TEST: Scenario Sorting ===\n");
 
     const toolbarId = "toolbar_____";
 
@@ -38,31 +41,29 @@ async function testUserScenario() {
             id: "root________", title: "Root", children: [
                 {
                     id: toolbarId, title: "Bookmarks Toolbar", children: [
-                        { id: "f_sys", title: "SysAdmin", index: 0, parentId: toolbarId },
-                        { id: "f_home", title: "Home", index: 1, parentId: toolbarId }
+                        { id: "f_work", title: "Work", index: 0, parentId: toolbarId },
+                        { id: "f_personal", title: "Personal", index: 1, parentId: toolbarId }
                     ]
                 }
             ]
         }
     ]);
 
-    // 2. Setup Config (User Provided Snippet)
-    // Note: User says "Home is 6 to the right", implying Home is NOT at 0 visibly, or SysAdmin is WAY before it.
-    // If SysAdmin is far left, it means SysAdmin is 0.
+    // 2. Setup Config
     const testConfig = [
         {
-            folder: "Home",
+            folder: "Personal",
             index: 0,
             config: { ignore: true }
         },
         {
-            folder: "SysAdmin",
+            folder: "Work",
             index: 6,
             config: { ignore: false }
         },
         // Child rule that might poison the parent?
         {
-            folder: "SysAdmin/Web Programming",
+            folder: "Work/Projects",
             config: { keywords: ["react"] } // No index specified
         }
     ];
@@ -77,15 +78,15 @@ async function testUserScenario() {
     const children = await browser.bookmarks.getChildren(toolbarId);
     console.log("Final Order:", children.map(c => `${c.title}(${c.index})`).join(', '));
 
-    const homeIdx = children.findIndex(c => c.title === "Home");
-    const sysIdx = children.findIndex(c => c.title === "SysAdmin");
+    const homeIdx = children.findIndex(c => c.title === "Personal");
+    const sysIdx = children.findIndex(c => c.title === "Work");
 
-    console.log(`Indices: Home=${homeIdx}, SysAdmin=${sysIdx}`);
+    console.log(`Indices: Personal=${homeIdx}, Work=${sysIdx}`);
 
     if (homeIdx < sysIdx) {
-        console.log("✅ PASS: Home is before SysAdmin.");
+        console.log("✅ PASS: Personal is before Work.");
     } else {
-        console.error("❌ FAIL: SysAdmin is before Home (Poisoned?).");
+        console.error("❌ FAIL: Work is before Personal (Poisoned?).");
         process.exit(1);
     }
 }

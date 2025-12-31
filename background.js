@@ -154,9 +154,7 @@ async function organizeBookmark(bookmark, folderMap = null) {
 
   const searchableText = (bookmark.title + " " + bookmark.url).toLowerCase();
 
-  if (searchableText.includes("cts control pots") || searchableText.includes("active noise")) {
-    console.log(`[DEBUG Org] Processing Specimen: '${bookmark.title}' (Previously skipped?)`);
-  }
+
 
   let matchedRule = null;
 
@@ -248,10 +246,7 @@ async function organizeBookmark(bookmark, folderMap = null) {
           const bookmarkParamsPath = pathParts.join('/');
           const fullPathLower = bookmarkParamsPath.toLowerCase();
 
-          // DEBUG LOG:
-          if (fullPathLower.includes("entertainment") || fullPathLower.includes("jerbs")) {
-            console.log(`[DEBUG Org] Strict Check for bookmark '${bookmark.title}'. Path: '${bookmarkParamsPath}'`);
-          }
+
 
           // 2. Build Set of Valid Configured Paths (and their ancestors)
           const validPaths = new Set();
