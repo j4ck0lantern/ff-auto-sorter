@@ -92,6 +92,15 @@
       .node-content {
         background-color: #1e1e1e !important;
       }
+
+      .tag {
+        background-color: #444;
+        color: #fff;
+      }
+
+      .tag-close {
+        color: #ccc;
+      }
     }
 
     /* Forced Dark Mode (Overrides) */
@@ -466,13 +475,7 @@
 
   <!-- SIDEBAR: AI & EXPORT -->
   <div id="sidebar">
-    <div style="display:flex; justify-content:flex-start; margin-bottom:10px; align-items:center; gap:5px;">
-      <button id="themeToggle" class="secondary" style="width:auto; padding:5px 10px; font-size:0.8rem;">🌓
-        Theme</button>
-      <a href="https://buymeacoffee.com/j4ck0lantern" target="_blank" class="secondary"
-        style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">☕
-        Coffee?</a>
-    </div>
+    <h2 style="margin-top:0;">Global Settings</h2>
 
     <!-- CARD 1: AI CONFIG -->
     <div class="card card-ai">
@@ -560,6 +563,19 @@
         <button id="importBtn" class="secondary" style="width: 100%;">Import JSON</button>
         <input type="file" id="importFile" class="hidden" accept=".json">
       </div>
+    </div>
+
+    <!-- UTILITIES -->
+    <div
+      style="display:flex; justify-content:flex-start; margin-top:auto; padding-top:20px; align-items:center; gap:5px;">
+      <button id="themeToggle" class="secondary" style="width:auto; padding:5px 10px; font-size:0.8rem;">🌓
+        Theme</button>
+      <a href="https://buymeacoffee.com/j4ck0lantern" target="_blank" class="secondary"
+        style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">☕
+        Coffee?</a>
+      <a href="https://github.com/j4ck0lantern/ff-auto-sorter" target="_blank" class="secondary"
+        style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">📦
+        Core</a>
     </div>
   </div> <!-- end sidebar -->
 
