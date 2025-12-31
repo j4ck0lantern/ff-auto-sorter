@@ -75,16 +75,11 @@ function loadScript(filename) {
     vm.runInThisContext(src, { filename: filename });
 }
 
-try {
-    loadScript('db.js');
-    loadScript('utils.js');
-    loadScript('folder_manager.js');
-    loadScript('ai_manager.js');
-    loadScript('background.js');
-} catch (e) {
-    console.error("Failed to load scripts:", e);
-    process.exit(1);
-}
+loadScript('db.js');
+loadScript('utils.js');
+loadScript('folder_manager.js');
+loadScript('ai_manager.js');
+loadScript('background.js');
 
 async function runTest() {
     console.log("=== TEST: Progress Regression ===");

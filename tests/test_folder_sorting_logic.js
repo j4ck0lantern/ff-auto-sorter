@@ -1,18 +1,57 @@
 /**
- * TEST: Critical Regressions Suite
+ * TEST: Folder Sorting Logic (Regression / Critical Fixes)
  * 
- * Verifies fixes for:
- * 1. Nested Index Poisoning (Home vs SysAdmin)
- * 2. Background Script Crash on Config Change (ReferenceError)
- * 3. AI JSON Parsing Resilience
+ * Scenarios:
+ * 1. Nested Index Poisoning: Verifies that child folder configuration (index 0 implicity)
+ *    does not accidentally overwrite the parent folder's explicit index.
+ *    Scenario: Parent "Work" (Index 6) vs Child "Work/Projects" (Index 0 implicit).
  */
 
 const fs = require('fs');
 const path = require('path');
-const mockBrowser = require('./mock_browser');
-
-global.browser = mockBrowser.browser;
 global.window = global;
+
+const mockBrowser = {
+    runtime: {
+        onInstalled: { addListener: () => { } },
+        onMessage: { addListener: () => { } },
+        onStartup: { addListener: () => { } },
+        sendMessage: async () => { }
+    },
+    bookmarks: {
+        onCreated: { addListener: () => { } },
+        getTree: async () => global.mockTree || [{ id: "root", children: [] }],
+        setTree: (tree) => { global.mockTree = tree; },
+        getChildren: async (id) => {
+            if (global.mockTree) {
+                const findNode = (nodes) => {
+                    for (const n of nodes) {
+                        if (n.id === id) return n.children || [];
+                        if (n.children) {
+                            const res = findNode(n.children);
+                            if (res) return res;
+                        }
+                    }
+                    return null;
+                };
+                return findNode(global.mockTree) || [];
+            }
+            return [];
+        },
+        move: async (id, dest) => {
+            // console.log(`[Mock] Move ${id} -> Parent: ${dest.parentId}, Index: ${dest.index}`);
+        }
+    },
+    storage: {
+        local: { get: async () => ({ sorterConfig: [] }), set: async (data) => { global.mockConfig = data; } },
+        sync: { get: async () => ({ sorterConfig: [] }), set: async () => { } },
+        onChanged: { addListener: () => { } }
+    },
+    menus: { create: () => { }, onClicked: { addListener: () => { } } },
+    notifications: { create: () => { }, clear: () => { } }
+};
+
+global.browser = mockBrowser;
 global.fetch = async () => ({
     ok: true,
     json: async () => ({ choices: [{ message: { content: '{"folder": "Mock/Path"}' } }] }),
@@ -28,6 +67,9 @@ function loadScript(filename) {
 
 // Load dependencies
 loadScript('db.js');
+loadScript('utils.js');
+loadScript('folder_manager.js');
+loadScript('ai_manager.js');
 loadScript('background.js');
 
 async function runTests() {

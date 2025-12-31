@@ -10,7 +10,9 @@
 // --- MOCKED GLOBAL STATE ---
 let configTree = [];
 
-// --- LOGIC UNDER TEST (Copied from options.js to ensure algorithmic correctness) ---
+// --- LOGIC UNDER TEST ---
+// Note: accurate reflection of options.js logic 
+// ...
 
 function parseConfigToTree(inputConfig) {
     // Config passed as arg for testing purity
