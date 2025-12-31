@@ -130,6 +130,12 @@ async function processSingleBookmarkAI(bookmark, useMutex = false) {
                 aiKeywords: result.wordSoup,
                 time: formatDate(Date.now())
             }, bookmark.id);
+
+            // LOG TAGS
+            if (window.reportManager) {
+                const tags = result.wordSoup ? result.wordSoup.split(',').map(s => s.trim()) : [];
+                window.reportManager.logTag(bookmark, tags);
+            }
         } finally {
             if (useMutex) dbMutex.unlock();
         }

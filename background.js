@@ -366,6 +366,9 @@ browser.runtime.onMessage.addListener(async (message) => {
 
   if (message.action === "organize-all") {
     runTask(async () => {
+      // START REPORT
+      if (window.reportManager) window.reportManager.start('Organize');
+
       const tree = await browser.bookmarks.getTree();
       let bookmarks = await getAllBookmarks(tree[0]);
 
@@ -418,6 +421,9 @@ browser.runtime.onMessage.addListener(async (message) => {
 
   else if (message.action === "classify-all") {
     runTask(async () => {
+      // START REPORT
+      if (window.reportManager) window.reportManager.start('AI Classify');
+
       const tree = await browser.bookmarks.getTree();
       let bookmarks = await getAllBookmarks(tree[0]);
 
@@ -454,6 +460,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       await processInBatches(bookmarks, batchSize, async (b) => {
         scanProgress.current++;
         if (scanProgress.current % (isFastMode ? 5 : 1) === 0) broadcastState();
+
+        // Log Scan
+        if (window.reportManager) window.reportManager.logScan();
 
         const normUrl = getNormalizedUrl(b.url);
         const dbTags = await TagDB.getTags(normUrl);
@@ -543,6 +552,25 @@ async function runTask(taskFn) {
     isScanning = false;
     scanProgress.detail = "Done.";
     scanProgress.stage = "Complete";
+
+    // FINISH REPORT
+    let reportLink = null;
+    if (window.reportManager && window.reportManager.currentReport) {
+      const reportId = await window.reportManager.finish();
+      if (reportId) {
+        reportLink = `reports.html?id=${reportId}`;
+        // Optional: Notify user
+        await browser.notifications.create("report-ready-" + reportId, {
+          type: "basic",
+          iconUrl: "icons/icon-48.png",
+          title: "Run Completed",
+          message: "Click to view the detailed report.",
+          priority: 2
+        });
+      }
+    }
+    scanProgress.reportLink = reportLink; // Send link to UI
+
     broadcastState();
     setTimeout(() => {
       scanProgress = { current: 0, total: 0, detail: "", stage: "Ready" };

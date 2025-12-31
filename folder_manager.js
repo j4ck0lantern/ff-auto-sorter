@@ -288,6 +288,18 @@ async function moveBookmarkToFolder(bookmark, folderPath, indexRule) {
     const toolbarId = "toolbar_____";
     const targetFolderId = await findOrCreateFolderPath(folderPath, toolbarId, indexRule);
     if (bookmark.parentId !== targetFolderId) {
+        // Capture Old State
+        let oldFolderName = "Unknown";
+        try {
+            const [oldParent] = await browser.bookmarks.get(bookmark.parentId);
+            oldFolderName = oldParent ? oldParent.title : "Unknown";
+        } catch (e) { }
+
         await browser.bookmarks.move(bookmark.id, { parentId: targetFolderId });
+
+        // LOG MOVE
+        if (window.reportManager) {
+            window.reportManager.logMove(bookmark, oldFolderName, folderPath, "Rule/AI Match");
+        }
     }
 }

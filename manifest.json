@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Sorter",
-  "version": "2.0",
+  "version": "3.0",
   "description": "Automatically organizes new and existing bookmarks into hobby folders based on keywords in the title and URL.",
   "host_permissions": [
     "*://generativelanguage.googleapis.com/*",
@@ -17,6 +17,7 @@
   ],
   "background": {
     "scripts": [
+      "report_manager.js",
       "db.js",
       "utils.js",
       "folder_manager.js",
