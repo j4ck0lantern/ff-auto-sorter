@@ -827,6 +827,7 @@ browser.runtime.onMessage.addListener(async (message) => {
       bookmarks = await deduplicateBookmarks(bookmarks);
 
       scanProgress.total = bookmarks.length;
+      scanProgress.current = 0; // Fix: Reset progress
       broadcastState();
 
       const sorterConfig = await getConfig();
@@ -1365,14 +1366,14 @@ async function pruneEmptyFolders() {
   if (sorterConfig) {
     sorterConfig.forEach(rule => {
       // Add Exact Path
-      if (rule.folder) protectedPaths.add(rule.folder.toLowerCase());
+      if (rule.folder) protectedPaths.add(rule.folder.trim().toLowerCase());
 
       // Add Ancestors ("Programming/Web" -> protects "Programming")
       const parts = rule.folder.split('/');
       let acc = "";
       parts.forEach(p => {
         acc = acc ? `${acc}/${p}` : p;
-        protectedPaths.add(acc.toLowerCase());
+        protectedPaths.add(acc.trim().toLowerCase());
       });
     });
   }
@@ -1455,4 +1456,21 @@ async function pruneEmptyFolders() {
     await traverseAndPrune(tree[0], "");
   }
   console.log("Pruning complete.");
+}
+
+/* --- Helpers (findOrCreateFolderPath) --- */
+async function findOrCreateFolderPath(path, baseParentId, ruleIndex) {
+  const parts = path.split('/').filter(p => p.length > 0);
+  let currentParentId = baseParentId;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    // FIX: Default to undefined (Append) instead of 0 (Top) to prevent index poisoning
+    let desiredIndex = (ruleIndex !== undefined) ?
+      (Array.isArray(ruleIndex) ? (ruleIndex[i] ?? undefined) : (i === 0 ? ruleIndex : undefined))
+      : undefined;
+
+    currentParentId = await findOrCreateSingleFolder(part, currentParentId, desiredIndex);
+  }
+  return currentParentId;
 }
