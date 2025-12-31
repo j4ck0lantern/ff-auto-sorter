@@ -106,7 +106,7 @@ browser.storage.onChanged.addListener((changes, area) => {
 
 /* --- State Management --- */
 let isScanning = false;
-let scanProgress = { current: 0, total: 0, detail: "" };
+let scanProgress = { current: 0, total: 0, detail: "", stage: "Ready" };
 
 function broadcastState() {
   browser.runtime.sendMessage({
@@ -370,17 +370,20 @@ browser.runtime.onMessage.addListener(async (message) => {
       let bookmarks = await getAllBookmarks(tree[0]);
 
       // 1. Deduplicate
+      scanProgress.stage = "Deduplicating";
       scanProgress.detail = "Removing duplicates...";
       broadcastState();
       bookmarks = await deduplicateBookmarks(bookmarks);
 
       // PRE-CALCULATE FOLDER MAP (Speed Boost)
+      scanProgress.stage = "Indexing";
       scanProgress.detail = "Building folder cache...";
       broadcastState();
       // Re-fetch tree to be safe after dedupe
       const freshTree = await browser.bookmarks.getTree();
       const folderMap = buildFolderMap(freshTree[0]);
 
+      scanProgress.stage = "Organizing";
       scanProgress.total = bookmarks.length;
       broadcastState();
 
@@ -394,16 +397,19 @@ browser.runtime.onMessage.addListener(async (message) => {
       }
 
       // 3. Consolidate Folders
+      scanProgress.stage = "Consolidating";
       scanProgress.detail = "Consolidating folders...";
       broadcastState();
       await consolidateFolders();
 
       // 4. Enforce Structure (Create Missing & Sort)
+      scanProgress.stage = "Sorting Folders";
       scanProgress.detail = "Enforcing folder order...";
       broadcastState();
       await enforceFolderStructure();
 
       // 5. Prune Empty Folders (safe)
+      scanProgress.stage = "Pruning";
       scanProgress.detail = "Cleaning empty folders...";
       broadcastState();
       await pruneEmptyFolders();
@@ -416,12 +422,14 @@ browser.runtime.onMessage.addListener(async (message) => {
       let bookmarks = await getAllBookmarks(tree[0]);
 
       // 1. Deduplicate
+      scanProgress.stage = "Deduplicating";
       scanProgress.detail = "Removing duplicates...";
       broadcastState();
       bookmarks = await deduplicateBookmarks(bookmarks);
 
       scanProgress.total = bookmarks.length;
       scanProgress.current = 0; // Fix: Reset progress
+      scanProgress.stage = "AI Classifying";
       broadcastState();
 
       const sorterConfig = await getConfig();
@@ -470,11 +478,13 @@ browser.runtime.onMessage.addListener(async (message) => {
 
       // 3. Enforce Folder Structure (Sort 0-N)
       // FIX: Ensure folders are sorted after AI moves
+      scanProgress.stage = "Sorting Folders";
       scanProgress.detail = "Enforcing folder order...";
       broadcastState();
       await enforceFolderStructure();
 
       // 4. Prune Empty
+      scanProgress.stage = "Pruning";
       scanProgress.detail = "Cleaning empty folders...";
       broadcastState();
       await pruneEmptyFolders();
@@ -485,6 +495,7 @@ browser.runtime.onMessage.addListener(async (message) => {
     runTask(async () => {
       const tree = await browser.bookmarks.getTree();
       const bookmarks = await getAllBookmarks(tree[0]);
+      scanProgress.stage = "Clearing Tags";
       scanProgress.total = bookmarks.length;
       scanProgress.current = 0; // Fix: Reset progress
       broadcastState();
@@ -519,7 +530,7 @@ browser.runtime.onMessage.addListener(async (message) => {
 async function runTask(taskFn) {
   if (isScanning) return;
   isScanning = true;
-  scanProgress = { current: 0, total: 0, detail: "Starting..." };
+  scanProgress = { current: 0, total: 0, detail: "Starting...", stage: "Initializing" };
   broadcastState();
 
   try {
@@ -527,12 +538,14 @@ async function runTask(taskFn) {
   } catch (e) {
     console.error("Task failed:", e);
     scanProgress.detail = `Error: ${e.message}`;
+    scanProgress.stage = "Error";
   } finally {
     isScanning = false;
     scanProgress.detail = "Done.";
+    scanProgress.stage = "Complete";
     broadcastState();
     setTimeout(() => {
-      scanProgress = { current: 0, total: 0, detail: "" };
+      scanProgress = { current: 0, total: 0, detail: "", stage: "Ready" };
       broadcastState();
     }, 3000);
   }
