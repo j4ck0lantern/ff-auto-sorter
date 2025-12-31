@@ -184,20 +184,14 @@ async function loadMainConfig() {
 
 let rootNode = null; // Store the parsed tree structure
 
-function parseConfigToTree() {
+function parseConfigToTree(sortByIndex = true) {
   // Root container
-  const root = { name: 'Root', children: [], fullPath: '', isRoot: true };
+  const root = { name: 'Root', children: [], fullPath: '', isRoot: true, parent: null };
 
-  // Map to keep track of created nodes by path for quick lookup
-  // BUT we need to handle duplicates or array order. 
-  // Best way to preserve order: Iterate array, find/create path components sequentially.
-  // To preserve "A comes before B", we push to children arrays.
-
-  // We need a helper to find a child in a node's children array
   const findChild = (node, name) => node.children.find(c => c.name === name);
 
   configTree.forEach(rule => {
-    const parts = rule.folder.split('/');
+    const parts = rule.folder.split('/').filter(p => p.length > 0);
     let current = root;
 
     parts.forEach((part, partIdx) => {
@@ -222,26 +216,45 @@ function parseConfigToTree() {
   });
 
   // Sort children by index (if available) to ensure UI matches backend
-  const sortNodes = (n) => {
-    n.children.sort((a, b) => {
-      const idxA = a.rule && a.rule.index !== undefined ? a.rule.index : 999;
-      const idxB = b.rule && b.rule.index !== undefined ? b.rule.index : 999;
-      return idxA - idxB;
-    });
-    n.children.forEach(sortNodes);
-  };
-  sortNodes(root);
+  if (sortByIndex) {
+    const sortNodes = (n) => {
+      n.children.sort((a, b) => {
+        const idxA = a.rule && a.rule.index !== undefined ? a.rule.index : 999;
+        const idxB = b.rule && b.rule.index !== undefined ? b.rule.index : 999;
+        if (idxA !== idxB) return idxA - idxB;
+        return a.name.localeCompare(b.name);
+      });
+      n.children.forEach(sortNodes);
+    };
+    sortNodes(root);
+  }
 
   return root;
+}
+
+// Ensure all folders in tree have a rule and correct index
+function syncConfigIndices() {
+  // 1. Build tree WITHOUT sorting (to keep current array/visual order)
+  const tree = parseConfigToTree(false);
+  // 2. Rebuild flat config, which updates indices and creates missing rules
+  configTree = rebuildConfigFromTree(tree);
 }
 
 // Regenerate the flat config array from the tree structure (DFS)
 // AND UPDATE INDICES based on visual order
 function rebuildConfigFromTree(node, list = []) {
-  // If this node has a rule, update its index based on its position in parent
-  if (node.rule && node.parent) {
+  if (node.parent && !node.isRoot) {
     const myIndex = node.parent.children.indexOf(node);
-    node.rule.index = myIndex;
+    if (!node.rule) {
+      // Create a "Container" rule so index is persisted
+      node.rule = {
+        folder: node.fullPath,
+        index: myIndex,
+        config: { keywords: [], regex: [] }
+      };
+    } else {
+      node.rule.index = myIndex;
+    }
   }
 
   if (node.rule) {
@@ -377,19 +390,19 @@ function renderNode(node, containerEl, index, totalSiblings) {
 }
 
 function moveNode(node, direction) {
-  if (!node.parent) return; // Can't move root??
+  if (!node.parent) return;
 
   const siblings = node.parent.children;
   const idx = siblings.indexOf(node);
 
-  // Swap in siblings array
   const targetIdx = idx + direction;
   if (targetIdx >= 0 && targetIdx < siblings.length) {
-    // Swap
+    // Swap in parent's children array
     [siblings[idx], siblings[targetIdx]] = [siblings[targetIdx], siblings[idx]];
 
-    // Rebuild flat config from the FULL tree (starting from rootNode)
-    configTree = rebuildConfigFromTree(rootNode);
+    // Synchronize indices across the whole config
+    syncConfigIndices();
+
     setDirty(true);
     renderTree();
   }
@@ -401,6 +414,9 @@ function setupMainListeners() {
   });
 
   document.getElementById('saveMainsBtn').addEventListener('click', async () => {
+    // Final sync before save
+    syncConfigIndices();
+
     // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
     const json = JSON.stringify({ sorterConfig: configTree });
     const bytes = new Blob([json]).size;
@@ -732,6 +748,7 @@ function handleDrop(e, targetNode) {
     configTree.splice(targetIndex, 0, ...draggedRules);
   }
 
+  syncConfigIndices(); // Ensure indices are strictly correct after drop/reparent
   setDirty(true);
   renderTree();
 }

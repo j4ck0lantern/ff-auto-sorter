@@ -27,11 +27,28 @@ const browser = {
             return item ? [item] : [];
         },
         create: async (obj) => {
-            const id = "new_" + Math.random();
+            const id = obj.id || ("new_" + Math.random());
             const newItem = { id, ...obj, children: [] };
-            // Simple: append to root's first child (unfiled)
-            if (browser.bookmarks._tree[0] && browser.bookmarks._tree[0].children[0]) {
-                browser.bookmarks._tree[0].children[0].children.push(newItem);
+
+            const findAndAttach = (nodes) => {
+                for (const n of nodes) {
+                    if (n.id === obj.parentId) {
+                        if (!n.children) n.children = [];
+                        if (obj.index !== undefined) {
+                            n.children.splice(obj.index, 0, newItem);
+                        } else {
+                            n.children.push(newItem);
+                        }
+                        return true;
+                    }
+                    if (n.children && findAndAttach(n.children)) return true;
+                }
+                return false;
+            };
+
+            if (!findAndAttach(browser.bookmarks._tree)) {
+                // Fallback for root or missing parent
+                browser.bookmarks._tree.push(newItem);
             }
             return newItem;
         },

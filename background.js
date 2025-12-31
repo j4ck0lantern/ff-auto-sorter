@@ -1296,19 +1296,15 @@ async function enforceFolderStructure() {
         if (Array.isArray(rule.index)) {
           ruleIdx = rule.index[depth] ?? 999;
         } else if (typeof rule.index === 'number') {
-          // If single number provided for "A/B", does it mean A's index or B's?
-          // Usually implies the folder itself.
           ruleIdx = rule.index;
         }
         currentNode.index = ruleIdx;
       } else {
-        // For intermediate nodes (e.g. "Programming" in "Programming/Web"), 
-        // we might not have an explicit rule for "Programming" itself.
-        // We'll rely on "Programming"'s rule if it exists separately. 
-        // If not, we check if there is a rule defined just for the parent.
-        // If not found, it stays 999 (sorted alphabetically or end).
-        // BUT, if we have "Programming" [0] and "Programming/Web" [0,0], 
-        // the first iteration sets "Programming" to 0. Second sees it exists.
+        // Intermediate node (e.g. "Work" in "Work/Tools")
+        // Only update if it was 999 to avoid overwriting a better index from another rule.
+        if (currentNode.index === 999 && Array.isArray(rule.index)) {
+          currentNode.index = rule.index[depth] ?? 999;
+        }
       }
     });
   });
