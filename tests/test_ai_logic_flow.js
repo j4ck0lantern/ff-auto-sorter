@@ -39,6 +39,7 @@ async function flushTasks() {
 async function testAIUsage() {
     console.log("=== AI LOGIC FLOW VERIFICATION SUITE ===\n");
 
+    const toolbarId = "toolbar_____";
     const rootId = "root________";
     const unfiledId = "unfiled_____";
 
@@ -46,6 +47,7 @@ async function testAIUsage() {
     browser.bookmarks.setTree([
         {
             id: rootId, title: "Root", children: [
+                { id: toolbarId, title: "Bookmarks Toolbar", children: [] },
                 {
                     id: unfiledId, title: "Other Bookmarks", children: [
                         { id: "b1", title: "Bookmark 1", url: "https://example.com/1", parentId: unfiledId },

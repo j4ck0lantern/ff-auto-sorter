@@ -51,7 +51,7 @@ SRC_FILES.forEach(file => {
 
         // CHECK: Debugger (CRITICAL ERROR)
         if (trimmed.includes('debugger;')) {
-            console.error(`❌ [${file}:${lineNum}] 'debugger' statement found.`);
+            console.error(`❌ [${file}:${lineNum}] 'debugger' statement found: "${trimmed}"`);
             errorCount++;
         }
 

@@ -856,8 +856,14 @@ browser.runtime.onMessage.addListener(async (message) => {
         scanProgress.current++;
         if (scanProgress.current % (isFastMode ? 5 : 1) === 0) broadcastState();
 
-        const dbTags = await TagDB.getTags(getNormalizedUrl(b.url));
-        if (dbTags.aiFolder && dbTags.aiFolder.toLowerCase() !== "miscellaneous") return;
+        const normUrl = getNormalizedUrl(b.url);
+        const dbTags = await TagDB.getTags(normUrl);
+        // console.log(`[AI-Scan] Checking ${b.title}: Tags=${JSON.stringify(dbTags)}`);
+
+        if (dbTags && dbTags.aiFolder && dbTags.aiFolder.toLowerCase() !== "miscellaneous") {
+          // console.log(`[AI-Scan] Skipping ${b.title} (already tagged: ${dbTags.aiFolder})`);
+          return;
+        }
 
         scanProgress.detail = `AI: ${b.title}`;
         broadcastState();
