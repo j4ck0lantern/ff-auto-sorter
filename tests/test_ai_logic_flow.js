@@ -30,8 +30,8 @@ loadScript('background.js');
 async function flushTasks() {
     await new Promise(r => setTimeout(r, 20));
     let depth = 0;
-    while (global.isScanning && depth < 50) {
-        await new Promise(r => setTimeout(r, 20));
+    while (global.isScanning && depth < 100) {
+        await new Promise(r => setTimeout(r, 50));
         depth++;
     }
 }
@@ -61,7 +61,7 @@ async function testAIUsage() {
         { folder: "Tech", config: { keywords: ["example"] }, index: [0] }
     ];
     await browser.storage.local.set({ sorterConfig: testConfig });
-    await browser.storage.sync.set({ aiConfig: { provider: "gemini" }, geminiApiKey: "fake-key" });
+    await browser.storage.sync.set({ aiConfig: { provider: "gemini", speed: 10 }, geminiApiKey: "fake-key" });
 
     // --- TEST 1: Organize All (Option 1) ---
     console.log("TEST 1: Organize All (Should NOT call AI)");
@@ -156,6 +156,26 @@ async function testAIUsage() {
         console.log("✅ PASS: Ignored folder name omitted from AI prompt.");
     } else {
         console.error("❌ FAIL: Ignored folder name was leaked in AI prompt.");
+        process.exit(1);
+    }
+
+    // --- TEST 6: Miscellaneous Re-evaluation ---
+    console.log("\nTEST 6: Miscellaneous Re-evaluation");
+    aiCallCount = 0;
+    global.fetchAI = async () => { aiCallCount++; return { folder: "Specific" }; };
+
+    // Scenario: b1 is already in Miscellaneous, b2 is in Tech
+    await TagDB.setTags(getNormalizedUrl("https://example.com/1"), { aiFolder: "Miscellaneous" }, "b1");
+    await TagDB.setTags(getNormalizedUrl("https://example.com/2"), { aiFolder: "Tech" }, "b2");
+
+    await browser.runtime.sendMessage({ action: "classify-all" });
+    await flushTasks();
+
+    // Expected: Only b1 is sent to AI (since Tech is skipped but Miscellaneous is re-evaluated)
+    if (aiCallCount === 1) {
+        console.log("✅ PASS: Miscellaneous bookmark was re-evaluated, specific bookmark was skipped.");
+    } else {
+        console.error(`❌ FAIL: AI call count was ${aiCallCount} (Expected 1 for re-evaluation).`);
         process.exit(1);
     }
 
