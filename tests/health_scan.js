@@ -14,7 +14,8 @@ const TEST_FILES = [
     'tests/test_css_dark_mode.js',
     'tests/test_ai_logic_flow.js',
     'tests/test_storage_priority.js',
-    'tests/test_folder_index_regression.js'
+    'tests/test_folder_index_regression.js',
+    'tests/test_critical_fixes.js'
 ];
 
 let errorCount = 0;

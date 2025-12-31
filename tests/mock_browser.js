@@ -120,7 +120,10 @@ const browser = {
         setTree: (tree) => { browser.bookmarks._tree = tree; }
     },
     storage: {
-        onChanged: { addListener: () => { } },
+        onChanged: {
+            _listeners: [],
+            addListener: (fn) => browser.storage.onChanged._listeners.push(fn)
+        },
         local: {
             _data: {},
             get: async (keys) => {
@@ -139,7 +142,13 @@ const browser = {
                 else res[keys] = browser.storage.sync._data[keys];
                 return res;
             },
-            set: async (obj) => { Object.assign(browser.storage.sync._data, obj); }
+            set: async (obj) => {
+                Object.assign(browser.storage.sync._data, obj);
+                // Notify listeners
+                for (const fn of browser.storage.onChanged._listeners) {
+                    fn(obj, 'sync');
+                }
+            }
         }
     },
     runtime: {
