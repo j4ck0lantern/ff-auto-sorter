@@ -10,7 +10,11 @@ const browser = {
         getTree: async () => JSON.parse(JSON.stringify(browser.bookmarks._tree)),
         getChildren: async (id) => {
             const [item] = await browser.bookmarks.get(id);
-            return item ? (item.children || []) : [];
+            // Simulate reading indices from current array position
+            if (item && item.children) {
+                return item.children.map((child, idx) => ({ ...child, index: idx }));
+            }
+            return [];
         },
         get: async (id) => {
             const find = (nodes) => {
@@ -24,7 +28,30 @@ const browser = {
                 return null;
             };
             const item = find(browser.bookmarks._tree);
-            return item ? [item] : [];
+            // In real API, get() returns object with index relative to parent
+            // We need to find parent to know index
+            if (item) {
+                 const findParent = (nodes, targetId) => {
+                    for (const n of nodes) {
+                        if (n.children) {
+                            const idx = n.children.findIndex(c => c.id === targetId);
+                            if (idx !== -1) return { parent: n, index: idx };
+                            const res = findParent(n.children, targetId);
+                            if (res) return res;
+                        }
+                    }
+                    return null;
+                 };
+                 // Handle root
+                 if (item.id === "root________") return [item];
+
+                 const pInfo = findParent([{ children: browser.bookmarks._tree }], item.id);
+                 if (pInfo) {
+                     return [{ ...item, index: pInfo.index, parentId: pInfo.parent.id === undefined ? undefined : pInfo.parent.id }];
+                 }
+                 return [item];
+            }
+            return [];
         },
         create: async (obj) => {
             const id = obj.id || ("new_" + Math.random());
@@ -52,10 +79,36 @@ const browser = {
             }
             return newItem;
         },
-        removeTree: async (id) => { /* no-op */ },
+        removeTree: async (id) => {
+             const remove = (nodes) => {
+                const idx = nodes.findIndex(n => n.id === id);
+                if (idx !== -1) {
+                    nodes.splice(idx, 1);
+                    return true;
+                }
+                for (const n of nodes) {
+                    if (n.children && remove(n.children)) return true;
+                }
+                return false;
+             };
+             remove(browser.bookmarks._tree);
+        },
         update: async (id, changes) => {
-            const [item] = await browser.bookmarks.get(id);
-            if (item) Object.assign(item, changes);
+            const [item] = await browser.bookmarks.get(id); // get copy
+            if (item) {
+                // Apply changes to real tree node
+                const findAndMod = (nodes) => {
+                     for (const n of nodes) {
+                         if (n.id === id) {
+                             Object.assign(n, changes);
+                             return true;
+                         }
+                         if (n.children && findAndMod(n.children)) return true;
+                     }
+                     return false;
+                };
+                findAndMod(browser.bookmarks._tree);
+            }
             return item;
         },
         search: async ({ url }) => {
@@ -70,6 +123,8 @@ const browser = {
             return results;
         },
         move: async (id, { parentId, index }) => {
+            // 1. Remove from old location
+            let item = null;
             const findAndRemove = (nodes) => {
                 for (let i = 0; i < nodes.length; i++) {
                     if (nodes[i].id === id) {
@@ -83,18 +138,23 @@ const browser = {
                 return null;
             };
 
-            const item = findAndRemove(browser.bookmarks._tree);
-            if (!item) return { id, parentId, index };
+            item = findAndRemove(browser.bookmarks._tree);
+            if (!item) throw new Error("Item not found");
 
-            // Find new parent and attach
+            // 2. Insert into new location
+            // Use provided parentId or keep existing (if moving within same folder)
+            const targetParentId = parentId || item.parentId;
+
             const findAndAttach = (nodes) => {
                 for (const n of nodes) {
-                    if (n.id === (parentId || item.parentId)) {
+                    if (n.id === targetParentId) {
                         if (!n.children) n.children = [];
                         const targetIdx = index !== undefined ? index : n.children.length;
-                        n.children.splice(targetIdx, 0, item);
+                        // Clamp index
+                        const actualIdx = Math.min(targetIdx, n.children.length);
+                        n.children.splice(actualIdx, 0, item);
                         item.parentId = n.id;
-                        item.index = targetIdx;
+                        // item.index is dynamic, we don't store it on the object persistently in this mock structure
                         return true;
                     }
                     if (n.children && findAndAttach(n.children)) return true;
@@ -103,16 +163,12 @@ const browser = {
             };
 
             if (!findAndAttach(browser.bookmarks._tree)) {
-                // Fallback to top level
+                // Root fallback
                 const targetIdx = index !== undefined ? index : browser.bookmarks._tree.length;
                 browser.bookmarks._tree.splice(targetIdx, 0, item);
-                item.index = targetIdx;
             }
 
-            // Mock indices for all siblings in the affected parent
-            // (Real API updates all indices when one moves)
-            // This is a simplification but helps tests
-            return { id, parentId: item.parentId, index: item.index };
+            return { id, parentId: item.parentId, index };
         },
         onCreated: { addListener: () => { } },
         onRemoved: { addListener: () => { } },

@@ -1340,7 +1340,15 @@ async function traverseAndEnforce(parentId, treeNode) {
   // Apply to Browser
   for (let i = 0; i < siblings.length; i++) {
     const sib = siblings[i];
-    const folderId = await findOrCreateSingleFolder(sib.name, parentId, i);
+    // Use configured index if available (and not default 999), otherwise rely on current position (undefined)
+    // or we could force it to be 'i' if we wanted compaction, but user wants absolute indexing.
+    // If sib.index is 999, it means "no preference", so we shouldn't force it to 999.
+    const targetIndex = (sib.index !== undefined && sib.index !== 999) ? sib.index : undefined;
+
+    // If targetIndex is undefined, we might still want to ensure it is *after* the previous ones?
+    // But siblings are sorted. If we have [A(0), B(999)], A goes to 0. B goes to undefined (end).
+
+    const folderId = await findOrCreateSingleFolder(sib.name, parentId, targetIndex);
     // Recursion
     await traverseAndEnforce(folderId, sib);
   }

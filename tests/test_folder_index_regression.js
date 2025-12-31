@@ -78,7 +78,9 @@ async function testFolderOrdering() {
     await browser.storage.local.set({ sorterConfig: nestedConfig });
     await enforceFolderStructure();
 
-    const workFolder = children.find(c => c.title === "Work");
+    // Refresh children
+    const newChildren = await browser.bookmarks.getChildren(toolbarId);
+    const workFolder = newChildren.find(c => c.title === "Work");
     const subChildren = await browser.bookmarks.getChildren(workFolder.id);
     const subOrder = subChildren.map(c => c.title);
 
