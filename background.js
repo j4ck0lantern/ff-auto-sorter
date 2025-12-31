@@ -1308,12 +1308,6 @@ async function enforceFolderStructure() {
         if (currentNode.index === 999) {
           if (Array.isArray(rule.index)) {
             currentNode.index = rule.index[depth] ?? 999;
-          } else if (depth === 0) {
-            // Robust check for number or string number
-            const rIdx = parseInt(rule.index, 10);
-            if (!isNaN(rIdx)) {
-              currentNode.index = rIdx;
-            }
           }
         }
       }
