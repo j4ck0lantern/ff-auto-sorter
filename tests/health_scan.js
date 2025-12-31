@@ -3,7 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SRC_FILES = ['background.js', 'options.js', 'popup.js', 'db.js'];
+const SRC_FILES = ['background.js', 'options.js', 'popup.js', 'db.js', 'utils.js', 'ai_manager.js', 'folder_manager.js'];
 const TEST_FILES = [
     'tests/test_utils.js',
     'tests/test_logic_core.js',
@@ -17,7 +17,9 @@ const TEST_FILES = [
     'tests/test_storage_priority.js',
     'tests/test_folder_index_regression.js',
     'tests/test_folder_sorting_logic.js',
-    'tests/test_sequence.js'
+    'tests/test_sequence.js',
+    'tests/test_reproduce_folder_gaps.js',
+    'tests/test_concurrency.js'
 ];
 
 let errorCount = 0;
