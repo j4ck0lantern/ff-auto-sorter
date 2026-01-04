@@ -50,11 +50,17 @@ const initPopup = () => {
     const updateUI = (state) => {
       if (state.isScanning) {
         setButtonsDisabled(true);
-        updateStatus("Working...", "working");
-        updateProgress(state.progress.current, state.progress.total, state.progress.detail);
+        // USE STAGE IF AVAILABLE
+        const stage = (state.progress && state.progress.stage) ? state.progress.stage : "Working...";
+        updateStatus(stage, "working");
+
+        if (state.progress) {
+          updateProgress(state.progress.current, state.progress.total, state.progress.detail);
+        }
       } else {
         setButtonsDisabled(false);
         if (progressContainer) progressContainer.style.display = 'none';
+
         if (state.lastResult) {
           if (state.lastResult.success) updateStatus("Task Complete!", "success");
           else if (state.lastResult.error) updateStatus(`Error: ${state.lastResult.error}`, "error");
@@ -97,11 +103,15 @@ const initPopup = () => {
 
     browser.runtime.onMessage.addListener((message) => {
       if (message.action === "scan-status-update" || message.action === "scan-progress-update") {
-        if (message.progress) updateProgress(message.progress.current, message.progress.total, message.progress.detail);
+        if (message.progress) {
+          updateProgress(message.progress.current, message.progress.total, message.progress.detail);
+        }
+
         if (message.isScanning !== undefined) {
           if (message.isScanning) {
             setButtonsDisabled(true);
-            updateStatus("Working...", "working");
+            const stage = (message.progress && message.progress.stage) ? message.progress.stage : "Working...";
+            updateStatus(stage, "working");
           } else {
             setButtonsDisabled(false);
             updateStatus("Done.", "success");
@@ -146,5 +156,5 @@ const initPopup = () => {
   }
 };
 
-// Run immediately (Script is at bottom of body)
+// Run immediately
 initPopup();

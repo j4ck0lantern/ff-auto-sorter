@@ -9,7 +9,7 @@
 
 // --- MOCKS ---
 const mockConfig = [
-    { folder: "Interests", config: {} }, // Parent Rule
+    { folder: "Hobbies", config: {} }, // Parent Rule
     { folder: "Programming/Web", config: {} } // Deep Rule
 ];
 
@@ -51,15 +51,15 @@ function testPathValidation() {
 
     // Scenarios
     const scenarios = [
-        { path: "Interests", expect: true, desc: "Exact Match Root" },
-        { path: "Interests/Carpentry", expect: true, desc: "Child of Root (Recursion Fix)" },
-        { path: "Interests/Carpentry/Tools", expect: true, desc: "Grandchild of Root" },
+        { path: "Hobbies", expect: true, desc: "Exact Match Root" },
+        { path: "Hobbies/Carpentry", expect: true, desc: "Child of Root (Recursion Fix)" },
+        { path: "Hobbies/Carpentry/Tools", expect: true, desc: "Grandchild of Root" },
         { path: "Programming", expect: true, desc: "Ancestor of Deep Rule" },
         { path: "Programming/Web", expect: true, desc: "Exact Match Deep Rule" },
         { path: "Programming/Web/React", expect: true, desc: "Child of Deep Rule" },
-        { path: "Entertainment", expect: false, desc: "Stray Root (Zombie)" },
-        { path: "Entertainment/Audio", expect: false, desc: "Stray Child" },
-        { path: "Other/Interests", expect: false, desc: "Partial Match Failing" }
+        { path: "Social", expect: false, desc: "Stray Root (Zombie)" },
+        { path: "Social/Audio", expect: false, desc: "Stray Child" },
+        { path: "Other/Hobbies", expect: false, desc: "Partial Match Failing" }
     ];
 
     let failures = 0;
@@ -91,12 +91,12 @@ function testPruningProtection() {
         });
     });
 
-    const scenarios = [
-        { path: "Interests", expectProtected: true },
+    const pruningScenarios = [
+        { path: "Hobbies", expectProtected: true },
         { path: "Programming", expectProtected: true }, // Ancestor
         { path: "Programming/Web", expectProtected: true },
-        { path: "Entertainment", expectProtected: false },
-        { path: "Bookmarks Toolbar/Interests", expectProtected: true } // Prefix handling is inside function, mocking simple here
+        { path: "Social", expectProtected: false },
+        { path: "Bookmarks Toolbar/Hobbies", expectProtected: true } // Prefix handling is inside function, mocking simple here
     ];
 
     // Note: The actual code handles "Bookmarks Toolbar/" prefix stripping.
@@ -119,7 +119,7 @@ function testPruningProtection() {
     }
 
     let failures = 0;
-    scenarios.forEach(s => {
+    pruningScenarios.forEach(s => {
         const result = isProtected(s.path);
         if (result === s.expectProtected) {
             console.log(`PASS: '${s.path}' Protected? ${result}`);

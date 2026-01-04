@@ -92,6 +92,15 @@
       .node-content {
         background-color: #1e1e1e !important;
       }
+
+      .tag {
+        background-color: #444;
+        color: #fff;
+      }
+
+      .tag-close {
+        color: #ccc;
+      }
     }
 
     /* Forced Dark Mode (Overrides) */
@@ -465,109 +474,124 @@
 <body>
 
   <!-- SIDEBAR: AI & EXPORT -->
-  <div id="sidebar">
-    <div style="display:flex; justify-content:flex-start; margin-bottom:10px; align-items:center; gap:5px;">
-      <button id="themeToggle" class="secondary" style="width:auto; padding:5px 10px; font-size:0.8rem;">🌓
-        Theme</button>
-      <a href="https://buymeacoffee.com/j4ck0lantern" target="_blank" class="secondary"
-        style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">☕
-        Coffee?</a>
+  <div id="sidebar" style="overflow: hidden; display: flex; flex-direction: column;">
+    <div style="flex: 0 0 auto; height: 40px; display: flex; align-items: center; margin-bottom: 10px;">
+      <h2 style="margin: 0;">Global Settings</h2>
     </div>
 
-    <!-- CARD 1: AI CONFIG -->
-    <div class="card card-ai">
-      <h3>AI Configuration</h3>
-      <p class="description">Configure your AI provider.</p>
+    <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+      <!-- CARD 1: AI CONFIG -->
+      <div class="card card-ai">
+        <h3>AI Configuration</h3>
+        <p class="description">Configure your AI provider.</p>
 
-      <label for="aiProvider">Provider</label>
-      <select id="aiProvider">
-        <option value="gemini">Google Gemini</option>
-        <option value="openai">OpenAI Compatible</option>
-      </select>
+        <label for="aiProvider">Provider</label>
+        <select id="aiProvider">
+          <option value="gemini">Google Gemini</option>
+          <option value="openai">OpenAI Compatible</option>
+        </select>
 
-      <div id="geminiConfig" class="config-section">
-        <label for="geminiApiKey">Gemini API Key</label>
-        <input type="password" id="geminiApiKey" placeholder="AIza...">
-        <small>Get key from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a></small>
+        <div id="geminiConfig" class="config-section">
+          <label for="geminiApiKey">Gemini API Key</label>
+          <input type="password" id="geminiApiKey" placeholder="AIza...">
+          <small>Get key from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a></small>
+        </div>
+
+        <div id="openaiConfig" class="config-section hidden">
+          <label for="openaiBaseUrl">Base URL</label>
+          <input type="text" id="openaiBaseUrl" placeholder="https://api.openai.com/v1">
+          <label for="openaiApiKey">API Key</label>
+          <input type="password" id="openaiApiKey" placeholder="sk-...">
+          <label for="openaiModel">Model</label>
+          <input type="text" id="openaiModel" placeholder="gpt-4o">
+        </div>
+
+        <label for="aiSpeed" style="margin-top:10px;">Processing Speed (Delay)</label>
+        <select id="aiSpeed">
+          <option value="100">Very Fast (0.1s) - High Limit</option>
+          <option value="500">Fast (0.5s) - Paid/High Limit keys</option>
+          <option value="1500" selected>Normal (1.5s) - Free Tier Safe</option>
+          <option value="3000">Slow (3s) - Conservative</option>
+          <option value="5000">Very Slow (5s)</option>
+        </select>
+
+        <button id="saveAiConfig" style="margin-top: 15px;">Save AI Settings</button>
+        <div id="aiStatus" style="margin-top: 10px; font-size: 0.9rem;"></div>
+
+        <div
+          style="margin-top:15px; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
+          <strong>Privacy & Cost Notice:</strong>
+          <ul style="margin:5px 0 0 15px; padding:0;">
+            <li>🔓Bookmark URLs and your Folder Rules are sent to your selected provider for classification.</li>
+            <li>💲You are using your own API Key. Standard usage rates from Google/OpenAI-Compatible services will
+              apply.
+            </li>
+          </ul>
+        </div>
       </div>
 
-      <div id="openaiConfig" class="config-section hidden">
-        <label for="openaiBaseUrl">Base URL</label>
-        <input type="text" id="openaiBaseUrl" placeholder="https://api.openai.com/v1">
-        <label for="openaiApiKey">API Key</label>
-        <input type="password" id="openaiApiKey" placeholder="sk-...">
-        <label for="openaiModel">Model</label>
-        <input type="text" id="openaiModel" placeholder="gpt-4o">
+      <!-- CARD 2: DATABASE MANAGEMENT -->
+      <div class="card card-db">
+        <h3>Database Management</h3>
+        <p class="description">Manage the AI tag database.</p>
+
+        <label for="storageMode" style="margin-top:10px;">
+          Storage Mode README:
+          <button id="storageInfoBtn" class="small-btn"
+            style="background:none; border:none; cursor:pointer; font-size:1rem;"
+            title="Learn more about storage modes">ℹ️</button>
+        </label>
+        <select id="storageMode" style="margin-bottom:10px;">
+          <option value="local">Local Database</option>
+          <option value="url">URL Hash (Portable, visible tags)</option>
+        </select>
+        <button id="migrateBtn" class="secondary" style="margin-left:5px; font-size:0.8rem; padding:4px 8px;">🔄 Migrate
+          Tags to this Mode</button>
+
+
+
+        <div style="display:flex; gap:10px; margin-top:5px;">
+          <button id="backupDbBtn" class="btn">Backup DB</button>
+          <button id="restoreDbBtn" class="btn danger">Restore DB</button>
+          <input type="file" id="restoreDbFile" style="display:none" accept=".json">
+        </div>
+        <div id="dbStatus" class="status-msg"></div>
       </div>
 
-      <label for="aiSpeed" style="margin-top:10px;">Processing Speed (Delay)</label>
-      <select id="aiSpeed">
-        <option value="100">Very Fast (0.1s) - High Limit</option>
-        <option value="500">Fast (0.5s) - Paid/High Limit keys</option>
-        <option value="1500" selected>Normal (1.5s) - Free Tier Safe</option>
-        <option value="3000">Slow (3s) - Conservative</option>
-        <option value="5000">Very Slow (5s)</option>
-      </select>
-
-      <button id="saveAiConfig" style="margin-top: 15px;">Save AI Settings</button>
-      <div id="aiStatus" style="margin-top: 10px; font-size: 0.9rem;"></div>
-
-      <div
-        style="margin-top:15px; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">
-        <strong>Privacy & Cost Notice:</strong>
-        <ul style="margin:5px 0 0 15px; padding:0;">
-          <li>🔓Bookmark URLs and your Folder Rules are sent to your selected provider for classification.</li>
-          <li>💲You are using your own API Key. Standard usage rates from Google/OpenAI-Compatible services will apply.
-          </li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- CARD 2: DATABASE MANAGEMENT -->
-    <div class="card card-db">
-      <h3>Database Management</h3>
-      <p class="description">Manage the AI tag database.</p>
-
-      <label for="storageMode" style="margin-top:10px;">
-        Storage Mode README:
-        <button id="storageInfoBtn" class="small-btn"
-          style="background:none; border:none; cursor:pointer; font-size:1rem;"
-          title="Learn more about storage modes">ℹ️</button>
-      </label>
-      <select id="storageMode" style="margin-bottom:10px;">
-        <option value="local">Local Database</option>
-        <option value="url">URL Hash (Portable, visible tags)</option>
-      </select>
-      <button id="migrateBtn" class="secondary" style="margin-left:5px; font-size:0.8rem; padding:4px 8px;">🔄 Migrate
-        Tags to this Mode</button>
-
-
-
-      <div style="display:flex; gap:10px; margin-top:5px;">
-        <button id="backupDbBtn" class="btn">Backup DB</button>
-        <button id="restoreDbBtn" class="btn danger">Restore DB</button>
-        <input type="file" id="restoreDbFile" style="display:none" accept=".json">
-      </div>
-      <div id="dbStatus" class="status-msg"></div>
-    </div>
-
-    <!-- CARD 3: FOLDER CONFIG -->
-    <div class="card card-backup">
-      <h3>Folder Rules Backup</h3>
-      <p class="description">Export your folder structure and rules.</p>
-      <div style="margin-top: 10px;">
-        <button id="exportBtn" class="secondary" style="width: 100%; margin-bottom: 10px;">Export JSON</button>
-        <button id="importBtn" class="secondary" style="width: 100%;">Import JSON</button>
-        <input type="file" id="importFile" class="hidden" accept=".json">
+      <!-- CARD 3: FOLDER CONFIG -->
+      <div class="card card-backup">
+        <h3>Folder Rules Backup</h3>
+        <p class="description">Export your folder structure and rules.</p>
+        <div style="margin-top: 10px;">
+          <button id="exportBtn" class="secondary" style="width: 100%; margin-bottom: 10px;">Export JSON</button>
+          <button id="importBtn" class="secondary" style="width: 100%;">Import JSON</button>
+          <input type="file" id="importFile" class="hidden" accept=".json">
+        </div>
       </div>
     </div>
   </div> <!-- end sidebar -->
 
   <!-- MAIN: FOLDER TREE -->
-  <div id="main">
+  <div id="main" style="overflow: hidden;">
+    <div style="flex: 0 0 auto; height: 40px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+      <h2 style="margin: 0;">Folder Settings</h2>
+      <div style="display:flex; gap:5px;">
+        <button id="themeToggle" class="secondary" style="width:auto; padding:5px 10px; font-size:0.8rem;">🌓
+          Theme</button>
+        <a href="reports.html" target="_blank" class="secondary"
+          style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--surface);">📊
+          Reports</a>
+        <a href="https://buymeacoffee.com/j4ck0lantern" target="_blank" class="secondary"
+          style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">☕
+          Coffee?</a>
+        <a href="https://github.com/j4ck0lantern/ff-auto-sorter" target="_blank" class="secondary"
+          style="text-decoration:none; font-size:0.8rem; padding:5px 10px; color:var(--text); border:1px solid var(--border); border-radius:4px; display:inline-block; background:var(--btn-bg);">📦
+          Core</a>
+      </div>
+    </div>
+
     <div class="card card-backup"
-      style="height: calc(100vh - 40px); display: flex; flex-direction: column; margin-bottom: 0;">
-      <h2 style="margin-top:0;">Folder Rules</h2>
+      style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0; overflow: hidden;">
       <div id="toolbar">
         <button id="addRootBtn" class="success">+ Add Top Level Folder</button>
         <button id="smartSuggestBtn" style="background: linear-gradient(45deg, #6610f2, #007bff);">✨ Smart

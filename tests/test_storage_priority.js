@@ -4,7 +4,7 @@ const vm = require('vm');
 
 /**
  * UNIT TEST: Storage Priority Regression
- *
+ * 
  * Verifies that getConfig() correctly falls back to Local storage
  * when Sync storage returns an empty array (which is truthy).
  */
@@ -26,14 +26,17 @@ const mockStorage = {
 const mockBrowser = {
     storage: {
         ...mockStorage,
-        onChanged: { addListener: () => {} }
+        onChanged: { addListener: () => { } }
     },
-    runtime: { onInstalled: { addListener: () => {} }, onMessage: { addListener: () => {} } },
-    bookmarks: { onCreated: { addListener: () => {} } },
-    menus: { create: () => {}, onClicked: { addListener: () => {} } }
+    runtime: { onInstalled: { addListener: () => { } }, onMessage: { addListener: () => { } } },
+    bookmarks: { onCreated: { addListener: () => { } } },
+    menus: { create: () => { }, onClicked: { addListener: () => { } } }
 };
 
-// 2. Load background.js in Sandbox
+// 2. Load scripts in Sandbox
+const utilsPath = path.join(__dirname, '../utils.js');
+const utilsCode = fs.readFileSync(utilsPath, 'utf8');
+
 const bgPath = path.join(__dirname, '../background.js');
 const bgCode = fs.readFileSync(bgPath, 'utf8');
 
@@ -42,14 +45,19 @@ const sandbox = {
     console: console,
     setTimeout: setTimeout,
     clearTimeout: clearTimeout,
-    fetch: () => {},
+    fetch: () => { },
     TagDB: { getTags: async () => ({}) }, // Mock dependency
     URL: URL,
     // Add other globals if needed
 };
 
 vm.createContext(sandbox);
-vm.runInContext(bgCode, sandbox);
+
+// Transform const/let to var to ensure variables attach to sandbox global
+const transform = (code) => code.replace(/^const /gm, 'var ').replace(/^let /gm, 'var ');
+
+vm.runInContext(transform(utilsCode), sandbox);
+vm.runInContext(transform(bgCode), sandbox);
 
 // 3. Test Cases
 async function runTests() {

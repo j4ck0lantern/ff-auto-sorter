@@ -3,14 +3,24 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SRC_FILES = ['background.js', 'options.js', 'popup.js', 'db.js'];
+const SRC_FILES = ['background.js', 'options.js', 'popup.js', 'db.js', 'utils.js', 'ai_manager.js', 'folder_manager.js'];
 const TEST_FILES = [
+    'tests/test_utils.js',
     'tests/test_logic_core.js',
     'tests/test_options_logic.js',
     'tests/test_progress_bug.js',
     'tests/test_config_hot_reload.js',
     'tests/test_performance_cache.js',
-    'tests/test_keyword_matching.js'
+    'tests/test_keyword_matching.js',
+    'tests/test_css_dark_mode.js',
+    'tests/test_ai_logic_flow.js',
+    'tests/test_storage_priority.js',
+    'tests/test_folder_index_regression.js',
+    'tests/test_folder_sorting_logic.js',
+    'tests/test_sequence.js',
+    'tests/test_reproduce_folder_gaps.js',
+    'tests/test_concurrency.js',
+    'tests/test_reports_xss.js'
 ];
 
 let errorCount = 0;
@@ -47,7 +57,7 @@ SRC_FILES.forEach(file => {
 
         // CHECK: Debugger (CRITICAL ERROR)
         if (trimmed.includes('debugger;')) {
-            console.error(`❌ [${file}:${lineNum}] 'debugger' statement found.`);
+            console.error(`❌ [${file}:${lineNum}] 'debugger' statement found: "${trimmed}"`);
             errorCount++;
         }
 

@@ -184,20 +184,14 @@ async function loadMainConfig() {
 
 let rootNode = null; // Store the parsed tree structure
 
-function parseConfigToTree() {
+function parseConfigToTree(sortByIndex = true) {
   // Root container
-  const root = { name: 'Root', children: [], fullPath: '', isRoot: true };
+  const root = { name: 'Root', children: [], fullPath: '', isRoot: true, parent: null };
 
-  // Map to keep track of created nodes by path for quick lookup
-  // BUT we need to handle duplicates or array order. 
-  // Best way to preserve order: Iterate array, find/create path components sequentially.
-  // To preserve "A comes before B", we push to children arrays.
-
-  // We need a helper to find a child in a node's children array
   const findChild = (node, name) => node.children.find(c => c.name === name);
 
   configTree.forEach(rule => {
-    const parts = rule.folder.split('/');
+    const parts = rule.folder.split('/').filter(p => p.length > 0);
     let current = root;
 
     parts.forEach((part, partIdx) => {
@@ -222,33 +216,64 @@ function parseConfigToTree() {
   });
 
   // Sort children by index (if available) to ensure UI matches backend
-  const sortNodes = (n) => {
-    n.children.sort((a, b) => {
-      const idxA = a.rule && a.rule.index !== undefined ? a.rule.index : 999;
-      const idxB = b.rule && b.rule.index !== undefined ? b.rule.index : 999;
-      return idxA - idxB;
-    });
-    n.children.forEach(sortNodes);
-  };
-  sortNodes(root);
+  if (sortByIndex) {
+    const sortNodes = (n) => {
+      n.children.sort((a, b) => {
+        const idxA = a.rule && a.rule.index !== undefined ? a.rule.index : 999;
+        const idxB = b.rule && b.rule.index !== undefined ? b.rule.index : 999;
+        if (idxA !== idxB) return idxA - idxB;
+        return a.name.localeCompare(b.name);
+      });
+      n.children.forEach(sortNodes);
+    };
+    sortNodes(root);
+  }
 
   return root;
 }
 
-// Regenerate the flat config array from the tree structure (DFS)
-// AND UPDATE INDICES based on visual order
 function rebuildConfigFromTree(node, list = []) {
-  // If this node has a rule, update its index based on its position in parent
-  if (node.rule && node.parent) {
-    const myIndex = node.parent.children.indexOf(node);
-    node.rule.index = myIndex;
-  }
+  // 1. Process Metadata for this Node (if not root)
+  if (!node.isRoot) {
+    // If Rule doesn't exist (Implicit Parent), CREATE IT.
+    if (!node.rule) {
+      console.log(`[Rebuild] Auto-creating rule for orphan: ${node.fullPath}`);
+      node.rule = {
+        folder: node.fullPath,
+        index: 0, // Will be updated below
+        config: {
+          keywords: [],
+          regex: [],
+          comment: "Auto-managed container"
+        }
+      };
+    }
 
-  if (node.rule) {
+    // Update Index based on current position in parent
+    if (node.parent) {
+      const myIndex = node.parent.children.indexOf(node);
+      node.rule.index = myIndex;
+    }
+
+    // Ensure path is consistent (in case of renames/moves that didn't update rule yet)
+    node.rule.folder = node.fullPath;
+
     list.push(node.rule);
   }
+
+  // 2. Recurse Children
   node.children.forEach(child => rebuildConfigFromTree(child, list));
   return list;
+}
+
+// Ensure all folders in tree have a rule and correct index
+// This should be called AFTER the tree structure is modified (drag-drop or arrows)
+function syncConfigIndices(customTree) {
+  const tree = customTree || rootNode;
+  if (!tree) return;
+  // Rebuild flat config, which updates indices and creates missing rules
+  configTree = rebuildConfigFromTree(tree);
+  console.log("[Sync] Updated rule indices:", configTree.map(r => `${r.folder}@${r.index}`).join(', '));
 }
 
 function renderTree() {
@@ -377,20 +402,21 @@ function renderNode(node, containerEl, index, totalSiblings) {
 }
 
 function moveNode(node, direction) {
-  if (!node.parent) return; // Can't move root??
+  if (!node.parent) return;
 
   const siblings = node.parent.children;
   const idx = siblings.indexOf(node);
 
-  // Swap in siblings array
   const targetIdx = idx + direction;
   if (targetIdx >= 0 && targetIdx < siblings.length) {
-    // Swap
+    // 1. Swap in parent's children array (modifies global rootNode indirectly)
     [siblings[idx], siblings[targetIdx]] = [siblings[targetIdx], siblings[idx]];
 
-    // Rebuild flat config from the FULL tree (starting from rootNode)
-    configTree = rebuildConfigFromTree(rootNode);
+    // 2. Synchronize indices in configTree based on this new tree structure
+    syncConfigIndices(rootNode);
+
     setDirty(true);
+    // 3. Render (which re-parses from updated configTree)
     renderTree();
   }
 }
@@ -401,6 +427,11 @@ function setupMainListeners() {
   });
 
   document.getElementById('saveMainsBtn').addEventListener('click', async () => {
+    // 1. Force a Rebuild from the current Tree state
+    // This ensures any "Implicit" folders (e.g. parents created by parsing subfolders)
+    // are converted into actual rules with indices.
+    syncConfigIndices(rootNode);
+
     // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
     const json = JSON.stringify({ sorterConfig: configTree });
     const bytes = new Blob([json]).size;
@@ -546,7 +577,7 @@ function setupDatabaseListeners() {
 
   // Backup
   document.getElementById('backupDbBtn').addEventListener('click', async () => {
-    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Backup?";
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\n\nProceed with Backup?";
     if (!confirm(msg)) return;
 
     const { bookmarkTags } = await browser.storage.local.get('bookmarkTags');
@@ -561,7 +592,7 @@ function setupDatabaseListeners() {
 
   // Restore
   document.getElementById('restoreDbBtn').addEventListener('click', () => {
-    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\\n\\nProceed with Restore?";
+    const msg = "Note: 'Backup/Restore' only affects the Local Database file.\nIf using URL Hash mode, your bookmarks are the backup (export them via browser).\n\nProceed with Restore?";
     if (confirm(msg)) {
       document.getElementById('restoreDbFile').click();
     }
@@ -732,6 +763,10 @@ function handleDrop(e, targetNode) {
     configTree.splice(targetIndex, 0, ...draggedRules);
   }
 
+  // After drop, we must rebuild the tree WITHOUT sorting to capture new order, then sync indices
+  const unsortedTree = parseConfigToTree(false);
+  syncConfigIndices(unsortedTree);
+
   setDirty(true);
   renderTree();
 }
@@ -883,6 +918,10 @@ function setupModalListeners() {
     // Add new
     configTree.push(newRule);
 
+    // Sync from fresh tree to ensure visual order matches indices
+    const freshTree = parseConfigToTree(false); // Build tree in current array order
+    syncConfigIndices(freshTree);
+
     setDirty(true);
     renderTree();
     closeModals();
@@ -984,10 +1023,13 @@ async function startSmartSuggest() {
     // Note: background.js needs to handle 'analyze-for-suggestions'
 
     // Extract current config context (Folder + Keywords)
-    const currentConfigContext = configTree.map(r => ({
-      folder: r.folder,
-      keywords: r.config.keywords || []
-    }));
+    // FILTER: Exclude IGNORED folders from suggestion context
+    const currentConfigContext = configTree
+      .filter(r => !r.config || !r.config.ignore)
+      .map(r => ({
+        folder: r.folder,
+        keywords: r.config.keywords || []
+      }));
 
     const response = await browser.runtime.sendMessage({
       action: 'analyze-for-suggestions',
