@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Sorter",
-  "version": "3.0",
+  "version": "3.1",
   "description": "Automatically organizes new and existing bookmarks into hobby folders based on keywords in the title and URL.",
   "host_permissions": [
     "*://generativelanguage.googleapis.com/*",
@@ -43,7 +43,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "j4ck0lantern@protonmail.com",
+      "id": "{5fedfe8b-e4cb-4c68-9d50-d6d809a46a66}",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": [

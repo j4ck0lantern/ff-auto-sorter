@@ -123,14 +123,20 @@ function formatDate(timestamp) {
 }
 
 /* --- Helper: Recursively Get All Bookmarks --- */
-async function getAllBookmarks(node) {
+async function getAllBookmarks(node, ignoredIds = new Set()) {
+    // If this folder is ignored, skip it AND its children
+    if (node.id && ignoredIds.has(node.id)) {
+        // console.log(`[Utils] Skipping ignored folder: ${node.title} (ID: ${node.id})`);
+        return [];
+    }
+
     let bookmarks = [];
     if (node.url) {
         bookmarks.push(node);
     }
     if (node.children) {
         for (const child of node.children) {
-            bookmarks = bookmarks.concat(await getAllBookmarks(child));
+            bookmarks = bookmarks.concat(await getAllBookmarks(child, ignoredIds));
         }
     }
     return bookmarks;

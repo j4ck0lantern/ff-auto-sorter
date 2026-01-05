@@ -424,8 +424,38 @@ browser.runtime.onMessage.addListener(async (message) => {
       // START REPORT
       if (window.reportManager) window.reportManager.start('AI Classify');
 
+      // 0. PRE-FILTER: Identify Ignored Folder IDs
+      const sorterConfig = await getConfig();
+      const ignoredPaths = new Set(
+        sorterConfig
+          .filter(r => r.config && r.config.ignore)
+          .map(r => r.folder.trim().toLowerCase())
+      );
+
       const tree = await browser.bookmarks.getTree();
-      let bookmarks = await getAllBookmarks(tree[0]);
+      const ignoredIds = new Set();
+
+      if (ignoredPaths.size > 0) {
+        // Resolve Paths to IDs
+        // We reuse the folder map logic or simple traversal
+        const mapIds = (node, currentPath) => {
+          if (!node.url && node.id) { // Folder
+            // Match?
+            if (ignoredPaths.has(currentPath.toLowerCase())) {
+              ignoredIds.add(node.id);
+            }
+            if (node.children) {
+              node.children.forEach(c => mapIds(c, currentPath ? `${currentPath}/${c.title}` : c.title));
+            }
+          }
+        };
+        // Root children are top level
+        if (tree[0].children) {
+          tree[0].children.forEach(c => mapIds(c, c.title));
+        }
+      }
+
+      let bookmarks = await getAllBookmarks(tree[0], ignoredIds);
 
       // 1. Deduplicate
       scanProgress.stage = "Deduplicating";
@@ -437,8 +467,6 @@ browser.runtime.onMessage.addListener(async (message) => {
       scanProgress.current = 0; // Fix: Reset progress
       scanProgress.stage = "AI Classifying";
       broadcastState();
-
-      const sorterConfig = await getConfig();
 
       // Load AI Config for Speed
       let aiConfig;
