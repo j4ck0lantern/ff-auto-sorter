@@ -17,18 +17,23 @@ async function getAISuggestionPrompt(bookmark, sorterConfig) {
     const activeRules = sorterConfig.filter(rule => !rule.config || !rule.config.ignore);
     const folderList = activeRules.map(rule => rule.folder).join(', ');
 
+    const defaultRule = sorterConfig.find(r => r.config && r.config.default);
+    const defaultFolderName = defaultRule ? defaultRule.folder : "Miscellaneous";
+
     const prompt = `
     Analyze this URL: ${bookmark.url}
     Title: ${bookmark.title}
     
     Folders: ${folderList}
+    Fallback Folder: ${defaultFolderName}
     
     INSTRUCTIONS:
     1. Choose the best specific folder from the list provided.
-    2. AVOID generic folders like "Miscellaneous" or "Other" if a more specific folder fits (Best Effort).
-    3. Use "Miscellaneous" ONLY if the bookmark absolutely does not belong in any other folder.
-    4. Provide an 8-word description for the bookmark title.
-    5. Provide 15 comma-separated keywords for search.
+    2. AVOID generic folders like "Miscellaneous" or "Other" IF a more specific folder fits (Best Effort).
+    3. If the bookmark does not have a strong semantic match to any specific folder, return "${defaultFolderName}".
+    4. It is BETTER to put it in "${defaultFolderName}" than to guess a wrong specific folder.
+    5. Provide an 8-word description for the bookmark title.
+    6. Provide 15 comma-separated keywords for search.
     
     JSON format: { "folder": "...", "description": "...", "wordSoup": "..." }
     `;

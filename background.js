@@ -274,6 +274,29 @@ browser.runtime.onMessage.addListener(async (message) => {
         }
       }
 
+      // 0.1 RESOLVE DEFAULT FOLDER ID (for Re-processing)
+      let defaultFolderId = null;
+      try {
+        const defaultRule = sorterConfig.find(r => r.config && r.config.default);
+        if (defaultRule) {
+          const defaultPathLower = defaultRule.folder.trim().toLowerCase();
+          const findDefaultId = (node, currentPath) => {
+            if (defaultFolderId) return; // Found
+            if (!node.url && node.id) {
+              if (currentPath.toLowerCase() === defaultPathLower) {
+                defaultFolderId = node.id;
+                return;
+              }
+              if (node.children) {
+                node.children.forEach(c => findDefaultId(c, currentPath ? `${currentPath}/${c.title}` : c.title));
+              }
+            }
+          };
+          if (tree[0].children) {
+            tree[0].children.forEach(c => findDefaultId(c, c.title));
+          }
+        }
+      } catch (e) { console.warn("Failed to resolve default folder ID", e); }
       let bookmarks = await getAllBookmarks(tree[0], ignoredIds);
 
       // 1. Deduplicate
@@ -301,31 +324,42 @@ browser.runtime.onMessage.addListener(async (message) => {
       const batchSize = isFastMode ? 5 : 1;
 
       await processInBatches(bookmarks, batchSize, async (b) => {
-        scanProgress.current++;
-        if (scanProgress.current % (isFastMode ? 5 : 1) === 0) broadcastState();
+        try {
+          scanProgress.current++;
+          if (scanProgress.current % (isFastMode ? 5 : 1) === 0) broadcastState();
 
-        // Log Scan
-        if (window.reportManager) window.reportManager.logScan();
+          // Log Scan
+          if (window.reportManager) window.reportManager.logScan();
 
-        const normUrl = getNormalizedUrl(b.url);
-        const dbTags = await TagDB.getTags(normUrl);
-        // console.log(`[AI-Scan] Checking ${b.title}: Tags=${JSON.stringify(dbTags)}`);
+          const normUrl = getNormalizedUrl(b.url);
+          const dbTags = await TagDB.getTags(normUrl);
+          // console.log(`[AI-Scan] Processing: ${b.title} | Tags Found: ${!!dbTags}`);
 
-        if (dbTags && dbTags.aiFolder && dbTags.aiFolder.toLowerCase() !== "miscellaneous") {
-          // console.log(`[AI-Scan] Skipping ${b.title} (already tagged: ${dbTags.aiFolder})`);
-          return;
+          if (dbTags && dbTags.aiFolder && dbTags.aiFolder.toLowerCase() !== "miscellaneous") {
+            // EXCEPTION: Always re-process items in the Default Folder to try and empty it
+            // EXCEPTION: Always re-process items tagged "Miscellaneous"
+            if (defaultFolderId && b.parentId === defaultFolderId) {
+              // Re-process (Pass through)
+              // console.log(`[AI-Scan] Re-processing Default Folder item: ${b.title}`);
+            } else {
+              // console.log(`[AI-Scan] Skipping ${b.title} (already tagged: ${dbTags.aiFolder})`);
+              return;
+            }
+          }
+
+          scanProgress.detail = `AI: ${b.title}`;
+          broadcastState();
+
+          if (!isFastMode) await delay(aiDelay);
+
+          // Check if bookmark is currently in an ignored folder?
+          // Hard to cheaply without full tree path knowledge.
+          // We'll trust the rules to ignore if configured.
+
+          await processSingleBookmarkAI(b, true); // Pass true to indicate mutex needed
+        } catch (e) {
+          console.error(`[AI-Scan] ERROR processing ${b.title}:`, e.message);
         }
-
-        scanProgress.detail = `AI: ${b.title}`;
-        broadcastState();
-
-        if (!isFastMode) await delay(aiDelay);
-
-        // Check if bookmark is currently in an ignored folder?
-        // Hard to cheaply without full tree path knowledge.
-        // We'll trust the rules to ignore if configured.
-
-        await processSingleBookmarkAI(b, true); // Pass true to indicate mutex needed
       });
 
       // 3. Enforce Folder Structure (Sort 0-N)
