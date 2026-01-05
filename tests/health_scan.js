@@ -27,7 +27,8 @@ const TEST_FILES = [
     'tests/test_sequence.js',
     'tests/test_reproduce_folder_gaps.js',
     'tests/test_concurrency.js',
-    'tests/test_reports_xss.js'
+    'tests/test_reports_xss.js',
+    'tests/test_ignore_safeguards.js'
 ];
 
 let errorCount = 0;
