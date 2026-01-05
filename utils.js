@@ -12,18 +12,14 @@ const DEFAULT_CONFIG = [
 ];
 
 /* --- HELPER: Get Config (Robust) --- */
+/* --- HELPER: Get Config (Robust) --- */
 async function getConfig() {
     let sorterConfig = null;
     try {
-        const sync = await browser.storage.sync.get("sorterConfig");
-        sorterConfig = sync.sorterConfig;
-    } catch (e) { }
-
-    if (!sorterConfig || (Array.isArray(sorterConfig) && sorterConfig.length === 0)) {
         const local = await browser.storage.local.get("sorterConfig");
-        if (local.sorterConfig && local.sorterConfig.length > 0) {
-            sorterConfig = local.sorterConfig;
-        }
+        sorterConfig = local.sorterConfig;
+    } catch (e) {
+        console.warn("Local storage access failed", e);
     }
     return sorterConfig || [];
 }

@@ -2,18 +2,14 @@
 async function getAISuggestionPrompt(bookmark, sorterConfig) {
     let aiConfig, geminiApiKey;
     try {
-        const sync = await browser.storage.sync.get(['aiConfig', 'geminiApiKey']);
-        aiConfig = sync.aiConfig;
-        geminiApiKey = sync.geminiApiKey;
-    } catch (e) {
-        // Sync failed, ignore
-    }
-
-    if (!aiConfig && !geminiApiKey) {
         const local = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
         aiConfig = local.aiConfig;
         geminiApiKey = local.geminiApiKey;
+    } catch (e) {
+        // failed
     }
+
+
     let provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
     if (!provider) return null;
 
@@ -217,16 +213,10 @@ async function analyzeBookmarksForSuggestions(existingConfig) {
         // Reuse fetchAI logic
         let aiConfig, geminiApiKey;
         try {
-            const sync = await browser.storage.sync.get(['aiConfig', 'geminiApiKey']);
-            aiConfig = sync.aiConfig;
-            geminiApiKey = sync.geminiApiKey;
-        } catch (e) { }
-
-        if (!aiConfig && !geminiApiKey) {
             const local = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
             aiConfig = local.aiConfig;
             geminiApiKey = local.geminiApiKey;
-        }
+        } catch (e) { }
 
         let provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
         if (!provider) throw new Error("AI Provider not configured");
@@ -246,15 +236,10 @@ async function analyzeSemanticConflicts(config) {
     try {
         let aiConfig, geminiApiKey;
         try {
-            const sync = await browser.storage.sync.get(['aiConfig', 'geminiApiKey']);
-            aiConfig = sync.aiConfig;
-            geminiApiKey = sync.geminiApiKey;
-        } catch (e) { }
-        if (!aiConfig && !geminiApiKey) {
             const local = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
             aiConfig = local.aiConfig;
             geminiApiKey = local.geminiApiKey;
-        }
+        } catch (e) { }
         const provider = aiConfig ? aiConfig.provider : (geminiApiKey ? 'gemini' : null);
 
         if (!provider) return { error: "AI not configured" };

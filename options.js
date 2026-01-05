@@ -67,27 +67,13 @@ function setDirty(isDirty) {
 
 /* --- AI CONFIG SECTION --- */
 async function loadAIConfig() {
-  // Try Sync first, then Local
+  // Local Only
   let aiConfig, geminiApiKey;
   try {
-    const sync = await browser.storage.sync.get(['aiConfig', 'geminiApiKey']);
-    aiConfig = sync.aiConfig;
-    geminiApiKey = sync.geminiApiKey;
-  } catch (e) { console.error("Sync load failed", e); }
-
-  if (!aiConfig && !geminiApiKey) {
-    // Fallback to local if sync is empty (first run after migration)
     const local = await browser.storage.local.get(['aiConfig', 'geminiApiKey']);
     aiConfig = local.aiConfig;
     geminiApiKey = local.geminiApiKey;
-
-    // Auto-migrate to sync? Yes.
-    if (aiConfig || geminiApiKey) {
-      try {
-        await browser.storage.sync.set({ aiConfig, geminiApiKey });
-      } catch (e) { }
-    }
-  }
+  } catch (e) { console.error("Local load failed", e); }
 
   const providerSel = document.getElementById('aiProvider');
   const geminiDiv = document.getElementById('geminiConfig');
@@ -154,30 +140,21 @@ function setupAIListeners() {
       if (!newConfig.baseUrl || !newConfig.model) return showStatus(statusEl, "Base URL and Model required", "red");
     }
 
-    await browser.storage.sync.set({ aiConfig: newConfig });
-    showStatus(statusEl, "Saved!", "green");
+    await browser.storage.local.set({ aiConfig: newConfig });
+    showStatus(statusEl, "Saved (Local)!", "green");
   });
 }
 
 /* --- MAIN CONFIG (TREE) SECTION --- */
+/* --- MAIN CONFIG (TREE) SECTION --- */
 async function loadMainConfig() {
-  // Try Sync first with error handling
+  // Local Only
   let sorterConfig = null;
   try {
-    const result = await browser.storage.sync.get('sorterConfig');
+    const result = await browser.storage.local.get('sorterConfig');
     sorterConfig = result.sorterConfig;
-  } catch (e) { console.warn("Sync load failed (Main)", e); }
+  } catch (e) { console.warn("Local load failed (Main)", e); }
 
-  if (!sorterConfig) {
-    // Fallback
-    const local = await browser.storage.local.get('sorterConfig');
-    sorterConfig = local.sorterConfig;
-    if (sorterConfig) {
-      try {
-        await browser.storage.sync.set({ sorterConfig });
-      } catch (e) { console.warn("Config too large for sync", e); }
-    }
-  }
   configTree = sorterConfig || [];
   renderTree();
 }
@@ -432,31 +409,13 @@ function setupMainListeners() {
     // are converted into actual rules with indices.
     syncConfigIndices(rootNode);
 
-    // PRE-CHECK SIZE (Approx 8KB limit per item for Sync)
-    const json = JSON.stringify({ sorterConfig: configTree });
-    const bytes = new Blob([json]).size;
-    const MAX_SYNC_BYTES = 8192; // Conservative limit (Chrome/FF vary, 8KB is safe lower bound)
-
-    if (bytes > MAX_SYNC_BYTES) {
-      console.warn(`Config size (${bytes} bytes) exceeds Sync limit (${MAX_SYNC_BYTES}). Saving locally only.`);
-      await browser.storage.local.set({ sorterConfig: configTree });
-      setDirty(false);
-      showStatus(document.getElementById('mainStatus'), "Saved locally (Config too large for Sync).", "orange");
-      return;
-    }
-
     try {
-      await browser.storage.sync.set({ sorterConfig: configTree });
-      // Also save local as backup?
       await browser.storage.local.set({ sorterConfig: configTree });
       setDirty(false);
-      showStatus(document.getElementById('mainStatus'), "Configuration Saved (Synced)!", "green");
+      showStatus(document.getElementById('mainStatus'), "Configuration Saved (Local)!", "green");
     } catch (e) {
-      console.warn("Sync failed despite check, falling back.", e);
-      // Fallback if quota exceeded
-      await browser.storage.local.set({ sorterConfig: configTree });
-      setDirty(false);
-      showStatus(document.getElementById('mainStatus'), "Saved locally (Sync error).", "orange");
+      console.warn("Save failed", e);
+      showStatus(document.getElementById('mainStatus'), "Save Failed: " + e.message, "red");
     }
   });
 
@@ -485,16 +444,13 @@ function setupMainListeners() {
           configTree = imported;
           configTree = imported;
           try {
-            await browser.storage.sync.set({ sorterConfig: configTree });
-            // Backup to local
             await browser.storage.local.set({ sorterConfig: configTree });
           } catch (e) {
-            console.warn("Sync failed on import, using local", e);
-            await browser.storage.local.set({ sorterConfig: configTree });
+            console.warn("Import save failed", e);
           }
           setDirty(false); // Saved immediately
           renderTree();
-          showStatus(document.getElementById('mainStatus'), "Imported successfully!", "green");
+          showStatus(document.getElementById('mainStatus'), "Imported successfully (Local)!", "green");
         } else {
           alert("Invalid JSON format: Must be an array.");
         }
@@ -518,10 +474,7 @@ function setupDatabaseListeners() {
   const modeSel = document.getElementById('storageMode');
 
   // Load Mode
-  browser.storage.sync.get('storageMode').then(({ storageMode }) => {
-    if (!storageMode) return browser.storage.local.get('storageMode');
-    return { storageMode };
-  }).then(({ storageMode }) => {
+  browser.storage.local.get('storageMode').then(({ storageMode }) => {
     modeSel.value = storageMode || 'local';
   });
 
@@ -546,7 +499,6 @@ function setupDatabaseListeners() {
   // Save Mode
   modeSel.addEventListener('change', async () => {
     const mode = modeSel.value;
-    await browser.storage.sync.set({ storageMode: mode });
     await browser.storage.local.set({ storageMode: mode }); // sync to local too
 
     // Update global DB instance if possible via messsage or reload? 

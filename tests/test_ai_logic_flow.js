@@ -66,7 +66,8 @@ async function testAIUsage() {
         { folder: "Tech", config: { keywords: ["example"] }, index: [0] }
     ];
     await browser.storage.local.set({ sorterConfig: testConfig });
-    await browser.storage.sync.set({ aiConfig: { provider: "gemini", speed: 10 }, geminiApiKey: "fake-key" });
+    // Updated: AI Config is now Local Only
+    await browser.storage.local.set({ aiConfig: { provider: "gemini", speed: 10 }, geminiApiKey: "fake-key" });
 
     // --- TEST 1: Organize All (Option 1) ---
     console.log("TEST 1: Organize All (Should NOT call AI)");

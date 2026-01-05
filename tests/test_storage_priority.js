@@ -61,7 +61,7 @@ vm.runInContext(transform(bgCode), sandbox);
 
 // 3. Test Cases
 async function runTests() {
-    console.log("=== TEST: Storage Priority (getConfig) ===");
+    console.log("=== TEST: Storage Priority (Loca Only) ===");
 
     const getConfig = sandbox.getConfig;
     if (typeof getConfig !== 'function') {
@@ -72,59 +72,45 @@ async function runTests() {
     let passes = 0;
     let fails = 0;
 
-    // SCENARIO 1: Sync has data -> Use Sync
-    console.log("\nScenario 1: Sync has data");
+    // SCENARIO 1: Sync has data, Local has data -> Use LOCAL
+    console.log("\nScenario 1: Sync has data, Local has data");
     mockStorage.syncData = { sorterConfig: [{ folder: "SyncFolder" }] };
     mockStorage.localData = { sorterConfig: [{ folder: "LocalFolder" }] };
 
     let config = await getConfig();
-    if (config.length === 1 && config[0].folder === "SyncFolder") {
-        console.log("PASS: Preferred Sync when available.");
+    if (config.length === 1 && config[0].folder === "LocalFolder") {
+        console.log("PASS: Preferred Local over Sync.");
         passes++;
     } else {
-        console.error("FAIL: Did not prefer Sync. Got:", config);
+        console.error("FAIL: Did not prefer Local. Got:", config);
         fails++;
     }
 
-    // SCENARIO 2: Sync is NULL/Undefined -> Use Local
-    console.log("\nScenario 2: Sync is Missing (null/undefined)");
-    mockStorage.syncData = {}; // get returns {}
-    mockStorage.localData = { sorterConfig: [{ folder: "LocalFolder" }] };
+    // SCENARIO 2: Local is Missing -> Return Empty
+    console.log("\nScenario 2: Local is Missing (null/undefined)");
+    mockStorage.syncData = { sorterConfig: [{ folder: "SyncFolder" }] };
+    mockStorage.localData = {};
 
     config = await getConfig();
-    if (config.length === 1 && config[0].folder === "LocalFolder") {
-        console.log("PASS: Fell back to Local when Sync missing.");
+    if (Array.isArray(config) && config.length === 0) {
+        console.log("PASS: Returned empty array (ignored Sync).");
         passes++;
     } else {
-        console.error("FAIL: Did not fallback to Local. Got:", config);
+        console.error("FAIL: Did not return empty. Got:", config);
         fails++;
     }
 
-    // SCENARIO 3: Sync is EMPTY ARRAY [] -> Use Local (THE BUG FIX)
-    console.log("\nScenario 3: Sync is Empty Array [] (The Bug)");
-    mockStorage.syncData = { sorterConfig: [] };
-    mockStorage.localData = { sorterConfig: [{ folder: "LocalFolder" }] };
-
-    config = await getConfig();
-    if (config.length === 1 && config[0].folder === "LocalFolder") {
-        console.log("PASS: Fell back to Local when Sync was empty array.");
-        passes++;
-    } else {
-        console.error("FAIL: Accepted empty Sync array instead of falling back. Got:", config);
-        fails++;
-    }
-
-    // SCENARIO 4: Both Empty -> Return Empty
-    console.log("\nScenario 4: Both Empty");
-    mockStorage.syncData = { sorterConfig: [] };
+    // SCENARIO 3: Local has Empty Array -> Use Empty Array
+    console.log("\nScenario 3: Local has Empty Array");
+    mockStorage.syncData = { sorterConfig: [{ folder: "SyncFolder" }] };
     mockStorage.localData = { sorterConfig: [] };
 
     config = await getConfig();
     if (Array.isArray(config) && config.length === 0) {
-        console.log("PASS: Returned empty array when both empty.");
+        console.log("PASS: Respects empty Local array.");
         passes++;
     } else {
-        console.error("FAIL: Unexpected result for empty state. Got:", config);
+        console.error("FAIL: Did not respect empty Local array. Got:", config);
         fails++;
     }
 

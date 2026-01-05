@@ -443,13 +443,9 @@ browser.runtime.onMessage.addListener(async (message) => {
       // Load AI Config for Speed
       let aiConfig;
       try {
-        const sync = await browser.storage.sync.get("aiConfig");
-        aiConfig = sync.aiConfig;
-      } catch (e) { }
-      if (!aiConfig) {
         const local = await browser.storage.local.get("aiConfig");
         aiConfig = local.aiConfig;
-      }
+      } catch (e) { }
 
       const aiDelay = (aiConfig && aiConfig.speed) ? aiConfig.speed : 1500;
 
