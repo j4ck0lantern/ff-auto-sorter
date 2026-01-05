@@ -13,8 +13,13 @@
             --text: #212529;
             --muted: #6c757d;
             --hover: #e9ecef;
+            --link: #0056b3;
+            /* Dark Blue */
+            --link-visited: #004494;
+            /* Darker Blue */
         }
 
+        /* Dark Mode Support via Attribute OR Media Query */
         @media (prefers-color-scheme: dark) {
             :root {
                 --primary: #0d6efd;
@@ -24,7 +29,37 @@
                 --text: #e0e0e0;
                 --muted: #b0b0b0;
                 --hover: #2f2f2f;
+                --link: #2ecc71;
+                /* Green */
+                --link-visited: #27ae60;
+                /* Darker Green */
             }
+        }
+
+        [data-theme="dark"] {
+            --primary: #0d6efd;
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --border: #333;
+            --text: #e0e0e0;
+            --muted: #b0b0b0;
+            --hover: #2f2f2f;
+            --link: #2ecc71;
+            /* Green */
+            --link-visited: #27ae60;
+            /* Darker Green */
+        }
+
+        [data-theme="light"] {
+            --primary: #007bff;
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --border: #dee2e6;
+            --text: #212529;
+            --muted: #6c757d;
+            --hover: #e9ecef;
+            --link: #0056b3;
+            --link-visited: #004494;
         }
 
         body {
@@ -35,6 +70,19 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
+        }
+
+        a {
+            color: var(--link);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        a:visited {
+            color: var(--link-visited);
         }
 
         /* Sidebar */

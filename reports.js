@@ -14,6 +14,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let currentReportId = null;
 
+    // --- Theme Logic ---
+    try {
+        const { themePreference } = await browser.storage.local.get("themePreference");
+        if (themePreference) {
+            document.documentElement.setAttribute('data-theme', themePreference);
+        }
+    } catch (e) { console.warn("Could not load theme", e); }
+
     // Load List
     await refreshList();
 
